@@ -1,0 +1,145 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: true
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Create Random Keystore
+        run: |
+          KEYSTORE_FILE="app/debug.keystore"
+          KEYSTORE_PASSWORD=$(openssl rand -base64 32)
+          KEY_ALIAS="debug-key"
+          KEY_PASSWORD=$(openssl rand -base64 32)
+
+          keytool -genkeypair \
+            -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, S=Debug, C=US" \
+            -keystore "$KEYSTORE_FILE" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keypass "$KEY_PASSWORD" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "Failed to create keystore with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+
+          echo "KEYSTORE_FILE=$KEYSTORE_FILE" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+          echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+
+      - name: Create gradle.properties
+        run: |
+          cat >> gradle.properties << 'EOF'
+
+          android.debug.keystore=${{ env.KEYSTORE_FILE }}
+          android.debug.keystore.password=${{ env.KEYSTORE_PASSWORD }}
+          android.debug.key.alias=${{ env.KEY_ALIAS }}
+          android.debug.key.alias.password=${{ env.KEY_PASSWORD }}
+          android.enableR8.fullMode=false
+          android.nonTransitiveRClass=true
+          android.ndkVersion=27.0.12077973
+          EOF
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: |
+          echo "Starting Gradle build..."
+          ./gradlew assembleDebug --no-daemon --stacktrace || {
+            echo "Build failed. Checking for errors..."
+            find . -name "*.log" -path "*/build/*" -exec tail -50 {} \; 2>/dev/null || true
+            exit 1
+          }
+          echo "Build completed successfully!"
+
+      - name: Find APK files
+        id: find_apk
+        run: |
+          echo "Searching for APK files..."
+          APK_DIR="app/build/outputs/apk/debug"
+          if [ -d "$APK_DIR" ]; then
+            echo "Found APK directory:"
+            ls -la "$APK_DIR"
+            APK_COUNT=$(find "$APK_DIR" -name "*.apk" | wc -l)
+            echo "APK count: $APK_COUNT"
+            echo "apk_dir=$APK_DIR" >> $GITHUB_OUTPUT
+            echo "apk_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No APK directory found!"
+            find app/build -type f -name "*.apk" 2>/dev/null || echo "No APK in app/build"
+            echo "apk_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload APK
+        if: steps.find_apk.outputs.apk_found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihon-debug-apks
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Delete old release
+        if: steps.find_apk.outputs.apk_found == 'true'
+        run: |
+          gh release delete v1.0.0-debug --yes --cleanup-tag || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        if: steps.find_apk.outputs.apk_found == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-debug
+          target_commitish: main
+          name: Mihon Super Resolution Debug Build
+          body: "Latest debug build with Anime4K CPU-only super resolution support.\n\nCommit: ${{ github.sha }}"
+          draft: false
+          prerelease: true
+          files: app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

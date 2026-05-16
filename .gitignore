@@ -1,0 +1,24 @@
+# Build files
+.gradle
+.kotlin
+build
+
+# IDE files
+*.iml
+.idea/*
+!.idea/icon.svg
+/captures
+
+# Configuration files
+local.properties
+
+# macOS specific files
+.DS_Store
+
+# NCNN Vulkan library (downloaded by prepare-build.sh)
+core/superresolution/src/main/cpp/ncnn/include/
+core/superresolution/src/main/cpp/ncnn/lib/
+
+# Models (downloaded by prepare-build.sh or already built-in,
+# depending on configuration. If built-in, they should be committed.)
+# core/superresolution/src/main/assets/models/
