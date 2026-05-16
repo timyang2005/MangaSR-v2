@@ -51,5 +51,5 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.injekt)
     
-    implementation("com.tencent.ncnn:ncnn-android:1.0.20230223")
+    implementation("com.github.Tencent:ncnn:20240711")
 }
