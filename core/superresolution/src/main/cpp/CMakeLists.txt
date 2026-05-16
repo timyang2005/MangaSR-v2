@@ -18,12 +18,6 @@ set(NCNN_LIB_DIR ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI})
 
 target_link_libraries(realesrgan-ncnn-vulkan
     ${NCNN_LIB_DIR}/libncnn.a
-    ${NCNN_LIB_DIR}/libSPIRV.a
-    ${NCNN_LIB_DIR}/libglslang.a
-    ${NCNN_LIB_DIR}/libMachineIndependent.a
-    ${NCNN_LIB_DIR}/libGenericCodeGen.a
-    ${NCNN_LIB_DIR}/libglslang-default-resource-limits.a
-    ${NCNN_LIB_DIR}/libOSDependent.a
     android
     log
     jnigraphics
