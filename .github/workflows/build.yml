@@ -1,40 +1,50 @@
-name: Build and Release
+name: Build APK
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 env:
   JAVA_VERSION: '17'
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+  ANDROID_NDK_VERSION: '27.0.12077973'
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Validate Gradle Wrapper
+        uses: gradle/wrapper-validation-action@v2
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Set up Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r27c
-          add-to-path: true
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Cache Gradle packages
+      - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -44,102 +54,81 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Create Random Keystore
+      - name: Check NCNN library
         run: |
-          KEYSTORE_FILE="app/debug.keystore"
-          KEYSTORE_PASSWORD=$(openssl rand -base64 32)
-          KEY_ALIAS="debug-key"
-          KEY_PASSWORD=$(openssl rand -base64 32)
+          echo "=== NCNN Library Status ==="
+          ls -la core/superresolution/src/main/cpp/ncnn/lib/
+          ls -la core/superresolution/src/main/cpp/ncnn/include/
+          echo "=== Models Status ==="
+          ls -la core/superresolution/src/main/assets/models/
 
-          keytool -genkeypair \
-            -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, S=Debug, C=US" \
-            -keystore "$KEYSTORE_FILE" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS" \
-            -keypass "$KEY_PASSWORD" \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000
-          EXIT_CODE=$?
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "Failed to create keystore with exit code $EXIT_CODE"
-            exit $EXIT_CODE
-          fi
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
-          echo "KEYSTORE_FILE=$KEYSTORE_FILE" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-          echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
-
-      - name: Create gradle.properties
+      - name: Build with Gradle
         run: |
-          cat >> gradle.properties << 'EOF'
+          ./gradlew clean
+          ./gradlew assemble${{ inputs.build_type || 'debug' }} --no-daemon --stacktrace 2>&1 | tee build.log
 
-          android.debug.keystore=${{ env.KEYSTORE_FILE }}
-          android.debug.keystore.password=${{ env.KEYSTORE_PASSWORD }}
-          android.debug.key.alias=${{ env.KEY_ALIAS }}
-          android.debug.key.alias.password=${{ env.KEY_PASSWORD }}
-          android.enableR8.fullMode=false
-          android.nonTransitiveRClass=true
-          android.ndkVersion=27.0.12077973
-          EOF
-
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
-      - name: Build Debug APK
-        run: |
-          echo "Starting Gradle build..."
-          ./gradlew assembleDebug --no-daemon --stacktrace || {
-            echo "Build failed. Checking for errors..."
-            find . -name "*.log" -path "*/build/*" -exec tail -50 {} \; 2>/dev/null || true
-            exit 1
-          }
-          echo "Build completed successfully!"
-
-      - name: Find APK files
-        id: find_apk
-        run: |
-          echo "Searching for APK files..."
-          APK_DIR="app/build/outputs/apk/debug"
-          if [ -d "$APK_DIR" ]; then
-            echo "Found APK directory:"
-            ls -la "$APK_DIR"
-            APK_COUNT=$(find "$APK_DIR" -name "*.apk" | wc -l)
-            echo "APK count: $APK_COUNT"
-            echo "apk_dir=$APK_DIR" >> $GITHUB_OUTPUT
-            echo "apk_found=true" >> $GITHUB_OUTPUT
-          else
-            echo "No APK directory found!"
-            find app/build -type f -name "*.apk" 2>/dev/null || echo "No APK in app/build"
-            echo "apk_found=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Upload APK
-        if: steps.find_apk.outputs.apk_found == 'true'
+      - name: Upload build logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: mihon-debug-apks
-          path: app/build/outputs/apk/debug/*.apk
+          name: build-logs
+          path: build.log
+          retention-days: 5
+
+      - name: Check APK output
+        id: check-apk
+        run: |
+          echo "=== APK Output ==="
+          find . -name "*.apk" -type f 2>/dev/null
+          if [ -f app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk" ]; then
+            APK_SIZE=$(du -h app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk | cut -f1)
+            echo "APK found: app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk ($APK_SIZE)"
+            echo "apk_path=app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk" >> $GITHUB_OUTPUT
+            echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: APK not found!"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manga-sr-${{ inputs.build_type || 'debug' }}-apk
+          path: ${{ steps.check-apk.outputs.apk_path }}
           retention-days: 30
 
-      - name: Delete old release
-        if: steps.find_apk.outputs.apk_found == 'true'
-        run: |
-          gh release delete v1.0.0-debug --yes --cleanup-tag || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create Release
-        if: steps.find_apk.outputs.apk_found == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-debug
-          target_commitish: main
-          name: Mihon Super Resolution Debug Build
-          body: "Latest debug build with Anime4K CPU-only super resolution support.\n\nCommit: ${{ github.sha }}"
-          draft: false
-          prerelease: true
-          files: app/build/outputs/apk/debug/*.apk
+          tag_name: v2.0.0-ci
+          release_name: MangaSR v2.0.0 CI Build
+          draft: true
+          prerelease: false
+          files: |
+            ${{ steps.check-apk.outputs.apk_path }}
+          body: |
+            ## MangaSR v2 - CI Build
+            
+            **APK Size**: ${{ steps.check-apk.outputs.apk_size }}
+            
+            ### Built with:
+            - Java ${{ env.JAVA_VERSION }}
+            - Android SDK ${{ env.ANDROID_COMPILE_SDK }}
+            - NDK ${{ env.ANDROID_NDK_VERSION }}
+            
+            ### Features:
+            - 5 AI Super-Resolution Models (Real-CUGAN + Real-ESRGAN)
+            - NCNN Vulkan GPU Acceleration
+            - Intelligent Preloading
+            - B&W Manga Optimization
+            - SR Status Indicator
+            
+            ### Build Info:
+            - Commit: ${{ github.sha }}
+            - Workflow: ${{ github.workflow }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
