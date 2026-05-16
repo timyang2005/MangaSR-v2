@@ -18,9 +18,8 @@ on:
 
 env:
   JAVA_VERSION: '17'
-  ANDROID_COMPILE_SDK: '35'
-  ANDROID_BUILD_TOOLS: '35.0.0'
-  ANDROID_NDK_VERSION: '27.0.12077973'
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  ANDROID_NDK_HOME: /opt/android-sdk/ndk/27.0.12077973
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
 
@@ -45,6 +44,18 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 37
+
+      - name: Setup Android NDK
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" 2>/dev/null || true
+          if [ -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973" ]; then
+            echo "NDK 27.0.12077973 already installed"
+          else
+            echo "Installing NDK..."
+            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" || echo "NDK install may have failed"
+          fi
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -59,23 +70,40 @@ jobs:
       - name: Check NCNN library
         run: |
           echo "=== NCNN Library Status ==="
-          ls -la core/superresolution/src/main/cpp/ncnn/lib/ || echo "NCNN lib not found"
-          ls -la core/superresolution/src/main/cpp/ncnn/include/ || echo "NCNN include not found"
+          find . -path "*ncnn/lib*" -name "*.a" -o -path "*ncnn/lib*" -name "*.so" 2>/dev/null | head -20 || echo "NCNN lib search..."
+          ls -la core/superresolution/src/main/cpp/ncnn/ 2>/dev/null || echo "NCNN dir not found"
           echo "=== Models Status ==="
-          ls -la core/superresolution/src/main/assets/models/ || echo "Models not found"
+          ls -la core/superresolution/src/main/assets/models/ 2>/dev/null || echo "Models dir not found"
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
         run: |
-          ./gradlew clean assemble${{ env.BUILD_TYPE }} --no-daemon --stacktrace 2>&1 | tee build.log || {
-            echo "BUILD FAILED - checking for errors"
-            tail -100 build.log
-            exit 1
-          }
+          set -o pipefail
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --no-daemon --stacktrace 2>&1 | tee build.log
+          BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "=========================================="
+            echo "BUILD FAILED with exit code: $BUILD_EXIT_CODE"
+            echo "=========================================="
+            echo ""
+            echo "=== Last 300 lines of build log ==="
+            tail -300 build.log
+            echo ""
+            echo "=== Looking for compilation errors ==="
+            grep -E "^e:|^Error:|FAILED|Kotlin.*error" build.log | head -100 || true
+            echo ""
+            echo "=== CMake/NDK errors ==="
+            grep -E "CMake|NDK|native|C\+\+" build.log | head -50 || true
+            exit $BUILD_EXIT_CODE
+          fi
+          echo "BUILD SUCCESSFUL"
 
       - name: Debug build output
+        if: always()
         run: |
           echo "=== Build Directory Structure ==="
           find app/build -type d 2>/dev/null | head -30 || echo "No build directory"
@@ -90,21 +118,21 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs-${{ env.BUILD_TYPE }}
+          name: build-logs-${{ env.BUILD_TYPE }}-${{ github.run_number }}
           path: build.log
-          retention-days: 5
+          retention-days: 30
 
-      - name: Find and Copy APK
+      - name: Find APK
         id: find-apk
+        if: success()
         run: |
           echo "=== Finding APK ==="
-          # Try different possible APK locations
           APK_PATH=""
           for variant in "${{ env.BUILD_TYPE }}" debug release; do
             for path in \
               "app/build/outputs/apk/${variant}/app-${variant}.apk" \
               "app/build/outputs/apk/${variant}/app-${variant}-unsigned.apk" \
-              "app/build/outputs/apk/${variant}/mihon-${variant}.apk"; do
+              "app/build/outputs/apk/${variant}/universal/app-universal.apk"; do
               if [ -f "$path" ]; then
                 echo "Found APK at: $path"
                 APK_PATH="$path"
@@ -113,7 +141,6 @@ jobs:
             done
           done
           
-          # List all APKs in build directory
           echo ""
           echo "All APKs found:"
           find app/build -name "*.apk" -type f 2>/dev/null
@@ -129,6 +156,7 @@ jobs:
           echo "APK Size: $APK_SIZE"
 
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: manga-sr-${{ env.BUILD_TYPE }}-apk
@@ -136,12 +164,12 @@ jobs:
           retention-days: 30
 
       - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.0.0-ci
           release_name: MangaSR v2.0.0 CI Build
-          draft: true
+          draft: false
           prerelease: false
           files: |
             ${{ steps.find-apk.outputs.apk_path }}
@@ -152,8 +180,8 @@ jobs:
 
             ### Built with:
             - Java ${{ env.JAVA_VERSION }}
-            - Android SDK ${{ env.ANDROID_COMPILE_SDK }}
-            - NDK ${{ env.ANDROID_NDK_VERSION }}
+            - Android SDK 37
+            - NDK 27.0.12077973
 
             ### Features:
             - 5 AI Super-Resolution Models (Real-CUGAN + Real-ESRGAN)
@@ -165,5 +193,6 @@ jobs:
             ### Build Info:
             - Commit: ${{ github.sha }}
             - Workflow: ${{ github.workflow }}
+            - Run: #${{ github.run_number }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
