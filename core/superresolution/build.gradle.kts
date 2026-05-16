@@ -50,6 +50,4 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.injekt)
-    
-    implementation("com.github.Tencent:ncnn:20240711")
 }
