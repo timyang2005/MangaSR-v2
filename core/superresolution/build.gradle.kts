@@ -38,6 +38,7 @@ dependencies {
     
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.common)
+    implementation(libs.androidx.lifecycle.viewmodel)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
