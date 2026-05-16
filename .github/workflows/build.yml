@@ -39,15 +39,6 @@ jobs:
           git lfs install
           git lfs pull
 
-      - name: Verify NCNN libraries
-        run: |
-          echo "=== NCNN Library Files ==="
-          for abi in arm64-v8a armeabi-v7a x86_64; do
-            echo "Checking $abi:"
-            ls -la core/superresolution/src/main/cpp/ncnn/lib/$abi/libncnn.a 2>/dev/null || echo "NOT FOUND"
-            file core/superresolution/src/main/cpp/ncnn/lib/$abi/libncnn.a 2>/dev/null || true
-          done
-
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
@@ -63,6 +54,70 @@ jobs:
           export ANDROID_SDK_ROOT=/opt/android-sdk
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-37" "build-tools;37.0.0" 2>&1 || true
           ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || true
+
+      - name: Download NCNN Vulkan libraries
+        run: |
+          NCNN_VERSION="20240711"
+          NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
+          
+          mkdir -p ${NCNN_DIR}/lib/arm64-v8a
+          mkdir -p ${NCNN_DIR}/lib/armeabi-v7a
+          mkdir -p ${NCNN_DIR}/lib/x86_64
+          mkdir -p ${NCNN_DIR}/include/ncnn
+          
+          echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android libraries..."
+          
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            echo "Downloading for $ABI..."
+            curl -sL "https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan-${ABI}.zip" -o "/tmp/ncnn-${ABI}.zip"
+            if [ -f "/tmp/ncnn-${ABI}.zip" ]; then
+              unzip -q -o "/tmp/ncnn-${ABI}.zip" -d "/tmp/ncnn-${ABI}"
+              cp /tmp/ncnn-${ABI}/lib/libncnn.*.a ${NCNN_DIR}/lib/${ABI}/ 2>/dev/null || true
+              ls -la ${NCNN_DIR}/lib/${ABI}/
+            else
+              echo "Failed to download for $ABI"
+            fi
+          done
+          
+          if [ -d "/tmp/ncnn-arm64-v8a" ]; then
+            cp -r /tmp/ncnn-arm64-v8a/include/* ${NCNN_DIR}/include/ 2>/dev/null || true
+            ls -la ${NCNN_DIR}/include/
+          fi
+
+      - name: Update CMakeLists to use downloaded libraries
+        run: |
+          cat > core/superresolution/src/main/cpp/CMakeLists.txt << 'EOF'
+cmake_minimum_required(VERSION 3.22.1)
+project(mihon_superresolution)
+
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(Vulkan REQUIRED)
+find_library(ANDROID_LOG log)
+find_library(ANDROID_JNIGRAPHICS jnigraphics)
+
+add_library(realesrgan-ncnn-vulkan SHARED
+    realesrgan_jni.cpp
+    realesrgan_wrapper.cpp
+    manga_bw_postprocessor.cpp
+)
+
+target_include_directories(realesrgan-ncnn-vulkan PRIVATE
+    ${CMAKE_SOURCE_DIR}/ncnn/include
+    ${CMAKE_SOURCE_DIR}/ncnn/include/ncnn
+)
+
+set(NCNN_LIB_DIR ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI})
+
+target_link_libraries(realesrgan-ncnn-vulkan
+    ${NCNN_LIB_DIR}/libncnn.a
+    android
+    log
+    jnigraphics
+    vulkan
+)
+EOF
+          cat core/superresolution/src/main/cpp/CMakeLists.txt
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
@@ -83,7 +138,7 @@ jobs:
           BUILD_EXIT=${PIPESTATUS[0]}
           
           echo "=== Build output ==="
-          cat build.log
+          tail -500 build.log
           
           if [ $BUILD_EXIT -ne 0 ]; then
             echo "::error::Build failed with exit code $BUILD_EXIT"
