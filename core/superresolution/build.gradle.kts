@@ -1,5 +1,6 @@
 plugins {
     alias(mihonx.plugins.android.library)
+    alias(libs.plugins.kotlin.compose.compiler)
 }
 
 android {
@@ -34,4 +35,11 @@ dependencies {
     implementation(projects.i18n)
     implementation(libs.okhttp.core)
     api(libs.logcat)
+    
+    implementation(libs.androidx.lifecycle.runtime)
+    implementation(libs.androidx.lifecycle.common)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.injekt)
 }
