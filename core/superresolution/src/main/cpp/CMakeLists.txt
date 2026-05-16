@@ -16,8 +16,10 @@ target_include_directories(realesrgan-ncnn-vulkan PRIVATE
 find_library(ANDROID_LOG log)
 find_library(ANDROID_JNIGRAPHICS jnigraphics)
 
+set(NCNN_LIB_DIR ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI})
+
 target_link_libraries(realesrgan-ncnn-vulkan
-    ncnn
+    ${NCNN_LIB_DIR}/libncnn.a
     android
     log
     jnigraphics
