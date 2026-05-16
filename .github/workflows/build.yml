@@ -66,10 +66,6 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Test Gradle works
-        run: |
-          ./gradlew --version
-      
       - name: Build APK
         run: |
           ./gradlew clean assemble${{ env.BUILD_TYPE }} --no-daemon --info 2>&1 | tee build.log
