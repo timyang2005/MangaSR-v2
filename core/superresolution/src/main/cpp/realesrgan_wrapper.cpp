@@ -13,7 +13,7 @@ bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int
 
     if (gpuid >= 0) {
         net.opt.use_vulkan_compute = true;
-        int device_id = (gpuid < ncnn::get_gpu_count()) ? gpuid : ncnn::get_default_gpu_device_id();
+        int device_id = (gpuid < ncnn::get_gpu_count()) ? gpuid : ncnn::get_default_gpu_index();
         net.set_vulkan_device(device_id);
     }
     net.opt.use_fp16_storage = true;
