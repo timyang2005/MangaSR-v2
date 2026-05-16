@@ -38,7 +38,7 @@ dependencies {
     
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.common)
-    implementation(libs.androidx.lifecycle.viewmodel)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
