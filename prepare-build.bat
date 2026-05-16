@@ -13,22 +13,25 @@ set "NCNN_DIR=core\superresolution\src\main\cpp\ncnn"
 if not exist "%NCNN_DIR%" mkdir "%NCNN_DIR%"
 
 echo.
-echo This script will download:
-echo   - NCNN v%NCNN_VERSION% Android Vulkan library (~25MB)
-echo.
-echo   Note: All model files are already built-in.
+echo MangaSR v2 - Build Preparation
 echo.
 
-REM Download NCNN
-echo [1/1] Downloading NCNN...
+REM Check if NCNN is already built-in
+if exist "%NCNN_DIR%\include\ncnn" if exist "%NCNN_DIR%\lib\arm64-v8a\libncnn.a" (
+    echo [INFO] NCNN library is already built-in. Skipping download.
+    goto :done
+)
+
+REM Download NCNN if not found
+echo [INFO] NCNN library not found. Downloading...
 cd /d "%~dp0%NCNN_DIR%"
 curl -L --retry 3 --connect-timeout 30 -o "ncnn.zip" "%NCNN_URL%"
 if errorlevel 1 (
-    echo Mirror download failed, trying direct GitHub...
+    echo [WARN] Mirror download failed, trying direct GitHub...
     curl -L --retry 3 --connect-timeout 30 -o "ncnn.zip" "https://github.com/Tencent/ncnn/releases/download/%NCNN_VERSION%/ncnn-%NCNN_VERSION%-android-vulkan.zip"
 )
 
-echo Extracting NCNN...
+echo [INFO] Extracting NCNN...
 powershell -Command "Expand-Archive -Force 'ncnn.zip' '.'"
 
 set "SRC_DIR=ncnn-%NCNN_VERSION%-android-vulkan"
@@ -51,6 +54,7 @@ del "ncnn.zip"
 
 cd /d "%~dp0"
 
+:done
 echo.
 echo ==========================================
 echo Build preparation completed!

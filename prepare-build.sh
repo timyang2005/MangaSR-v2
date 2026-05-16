@@ -99,14 +99,15 @@ verify() {
 
 main() {
     echo ""
-    echo "This script will download:"
-    echo "  - NCNN v${NCNN_VERSION} Android Vulkan library (~25MB)"
-    echo ""
-    echo "  Note: All model files are already built-in."
+    echo "MangaSR v2 - Build Preparation"
     echo ""
 
-    download_ncnn
-    verify
+    if [ -d "${NCNN_DIR}/include/ncnn" ] && [ -f "${NCNN_DIR}/lib/arm64-v8a/libncnn.a" ]; then
+        log_info "NCNN library is already built-in. Skipping download."
+    else
+        log_info "NCNN library not found. Downloading..."
+        download_ncnn
+    fi
 
     echo ""
     log_info "=========================================="
