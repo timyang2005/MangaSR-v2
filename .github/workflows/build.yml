@@ -22,6 +22,7 @@ env:
   ANDROID_BUILD_TOOLS: '35.0.0'
   ANDROID_NDK_VERSION: '27.0.12077973'
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
+  BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
 
 jobs:
   build:
@@ -58,47 +59,80 @@ jobs:
       - name: Check NCNN library
         run: |
           echo "=== NCNN Library Status ==="
-          ls -la core/superresolution/src/main/cpp/ncnn/lib/
-          ls -la core/superresolution/src/main/cpp/ncnn/include/
+          ls -la core/superresolution/src/main/cpp/ncnn/lib/ || echo "NCNN lib not found"
+          ls -la core/superresolution/src/main/cpp/ncnn/include/ || echo "NCNN include not found"
           echo "=== Models Status ==="
-          ls -la core/superresolution/src/main/assets/models/
+          ls -la core/superresolution/src/main/assets/models/ || echo "Models not found"
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
         run: |
-          ./gradlew clean
-          ./gradlew assemble${{ inputs.build_type || 'debug' }} --no-daemon --stacktrace 2>&1 | tee build.log
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --no-daemon --stacktrace 2>&1 | tee build.log || {
+            echo "BUILD FAILED - checking for errors"
+            tail -100 build.log
+            exit 1
+          }
+
+      - name: Debug build output
+        run: |
+          echo "=== Build Directory Structure ==="
+          find app/build -type d 2>/dev/null | head -30 || echo "No build directory"
+          echo ""
+          echo "=== APK Files ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK found"
+          echo ""
+          echo "=== outputs directory ==="
+          ls -laR app/build/outputs/ 2>/dev/null || echo "No outputs directory"
 
       - name: Upload build logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: build-logs-${{ env.BUILD_TYPE }}
           path: build.log
           retention-days: 5
 
-      - name: Check APK output
-        id: check-apk
+      - name: Find and Copy APK
+        id: find-apk
         run: |
-          echo "=== APK Output ==="
-          find . -name "*.apk" -type f 2>/dev/null
-          if [ -f app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk" ]; then
-            APK_SIZE=$(du -h app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk | cut -f1)
-            echo "APK found: app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk ($APK_SIZE)"
-            echo "apk_path=app/build/outputs/apk/${{ inputs.build_type || 'debug' }}/app-${{ inputs.build_type || 'debug' }}.apk" >> $GITHUB_OUTPUT
-            echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
-          else
-            echo "ERROR: APK not found!"
+          echo "=== Finding APK ==="
+          # Try different possible APK locations
+          APK_PATH=""
+          for variant in "${{ env.BUILD_TYPE }}" debug release; do
+            for path in \
+              "app/build/outputs/apk/${variant}/app-${variant}.apk" \
+              "app/build/outputs/apk/${variant}/app-${variant}-unsigned.apk" \
+              "app/build/outputs/apk/${variant}/mihon-${variant}.apk"; do
+              if [ -f "$path" ]; then
+                echo "Found APK at: $path"
+                APK_PATH="$path"
+                break 2
+              fi
+            done
+          done
+          
+          # List all APKs in build directory
+          echo ""
+          echo "All APKs found:"
+          find app/build -name "*.apk" -type f 2>/dev/null
+          
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No APK found!"
             exit 1
           fi
+          
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          echo "APK Size: $APK_SIZE"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: manga-sr-${{ inputs.build_type || 'debug' }}-apk
-          path: ${{ steps.check-apk.outputs.apk_path }}
+          name: manga-sr-${{ env.BUILD_TYPE }}-apk
+          path: ${{ steps.find-apk.outputs.apk_path }}
           retention-days: 30
 
       - name: Create Release
@@ -110,24 +144,24 @@ jobs:
           draft: true
           prerelease: false
           files: |
-            ${{ steps.check-apk.outputs.apk_path }}
+            ${{ steps.find-apk.outputs.apk_path }}
           body: |
             ## MangaSR v2 - CI Build
-            
-            **APK Size**: ${{ steps.check-apk.outputs.apk_size }}
-            
+
+            **APK Size**: ${{ steps.find-apk.outputs.apk_size }}
+
             ### Built with:
             - Java ${{ env.JAVA_VERSION }}
             - Android SDK ${{ env.ANDROID_COMPILE_SDK }}
             - NDK ${{ env.ANDROID_NDK_VERSION }}
-            
+
             ### Features:
             - 5 AI Super-Resolution Models (Real-CUGAN + Real-ESRGAN)
             - NCNN Vulkan GPU Acceleration
             - Intelligent Preloading
             - B&W Manga Optimization
             - SR Status Indicator
-            
+
             ### Build Info:
             - Commit: ${{ github.sha }}
             - Workflow: ${{ github.workflow }}
