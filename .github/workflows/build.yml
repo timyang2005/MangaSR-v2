@@ -22,6 +22,7 @@ env:
   ANDROID_NDK_HOME: /opt/android-sdk/ndk/27.0.12077973
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
@@ -54,6 +55,43 @@ jobs:
           export ANDROID_SDK_ROOT=/opt/android-sdk
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-37" "build-tools;37.0.0" 2>&1 || true
           ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || true
+
+      - name: Download NCNN libraries
+        run: |
+          set -e
+          NCNN_VERSION="20260113"
+          NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
+          GH_API="https://api.github.com/repos/nihui/ncnn/releases"
+          
+          mkdir -p ${NCNN_DIR}/lib/arm64-v8a
+          mkdir -p ${NCNN_DIR}/lib/armeabi-v7a
+          mkdir -p ${NCNN_DIR}/lib/x86_64
+          mkdir -p ${NCNN_DIR}/include/ncnn
+          
+          echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android libraries..."
+          
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            echo "Downloading for $ABI..."
+            ASSET_URL="https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan-${ABI}.zip"
+            curl -L -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              "$ASSET_URL" \
+              -o "/tmp/ncnn-${ABI}.zip"
+            
+            if [ -f "/tmp/ncnn-${ABI}.zip" ] && unzip -t "/tmp/ncnn-${ABI}.zip" > /dev/null 2>&1; then
+              unzip -q -o "/tmp/ncnn-${ABI}.zip" -d "/tmp/ncnn-${ABI}"
+              cp /tmp/ncnn-${ABI}/lib/*.a ${NCNN_DIR}/lib/${ABI}/ 2>/dev/null || true
+              ls -la ${NCNN_DIR}/lib/${ABI}/
+            else
+              echo "Failed to download valid zip for $ABI"
+              cat /tmp/ncnn-${ABI}.zip 2>/dev/null | head -1 || echo "Empty file"
+            fi
+          done
+          
+          if [ -d "/tmp/ncnn-arm64-v8a" ]; then
+            cp -r /tmp/ncnn-arm64-v8a/include/* ${NCNN_DIR}/include/ 2>/dev/null || true
+            ls -la ${NCNN_DIR}/include/
+          fi
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
