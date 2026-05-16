@@ -38,7 +38,6 @@ dependencies {
     
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.common)
-    implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.injekt)
