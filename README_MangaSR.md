@@ -124,39 +124,35 @@ core/superresolution/
 - NDK 27.0.12077973
 - CMake 3.22.1+
 
-### 准备 NCNN 库
+### 模型文件（已内置）
 
-1. 从 [NCNN Releases](https://github.com/nihui/ncnn/releases) 下载 Android 预编译库
-2. 将头文件放置到 `core/superresolution/src/main/cpp/ncnn/include/`
-3. 将静态库按 ABI 放置到 `core/superresolution/src/main/cpp/ncnn/libs/`
+✅ **所有 5 款 AI 超分模型已内置在 APK 中**，无需手动下载！
 
-### 准备模型文件
+| 模型 | 倍率 | 大小 |
+|------|------|------|
+| Real-CUGAN 2x-conservative | x2 | ~2MB |
+| Real-CUGAN 4x-conservative | x4 | ~2.2MB |
+| Real-ESRGAN Anime Fast | x4 | ~1.5MB |
+| Real-ESRGAN Anime+ | x4 | ~5MB |
+| Real-ESRGAN General Fast | x4 | ~3MB |
 
-从以下项目获取 NCNN 格式模型：
+### 准备 NCNN 库（仅需此步）
 
-- **Real-CUGAN**: [realcugan-ncnn-vulkan](https://github.com/nihui/realcugan-ncnn-vulkan)
-- **Real-ESRGAN**: [Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan)
+1. 运行自动准备脚本：
+   ```bash
+   # Linux/macOS
+   ./prepare-build.sh
 
-将 `.param` 和 `.bin` 文件放入对应目录：
+   # Windows
+   prepare-build.bat
+   ```
 
-```
-assets/models/
-├── realcugan-2x-conservative/
-│   ├── realcugan-2x-conservative.param
-│   └── realcugan-2x-conservative.bin
-├── realcugan-4x-conservative/
-│   ├── realcugan-4x-conservative.param
-│   └── realcugan-4x-conservative.bin
-├── realesrgan-anime-fast/
-│   ├── realesrgan-anime-fast.param
-│   └── realesrgan-anime-fast.bin
-├── realesrgan-anime-plus/
-│   ├── realesrgan-anime-plus.param
-│   └── realesrgan-anime-plus.bin
-└── realesrgan-general-fast/
-    ├── realesrgan-general-fast.param
-    └── realesrgan-general-fast.bin
-```
+   脚本会自动从 GitHub 镜像下载 NCNN 预编译库并放置到正确位置。
+
+   或者手动下载：
+   1. 从 [NCNN Releases](https://github.com/nihui/ncnn/releases) 下载 Android 预编译库
+   2. 将头文件放置到 `core/superresolution/src/main/cpp/ncnn/include/`
+   3. 将静态库按 ABI 放置到 `core/superresolution/src/main/cpp/ncnn/lib/`
 
 ### 构建
 
