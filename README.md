@@ -1,225 +1,200 @@
-<div align="center">
+<p align="center">
+  <h1 align="center">MangaSR v2</h1>
+  <p align="center">
+    AI 驱动的实时超分辨率漫画阅读器<br/>
+    基于 <a href="https://github.com/mihonapp/mihon">Mihon</a>，搭载 Real-ESRGAN & Real-CUGAN + NCNN Vulkan
+  </p>
+</p>
 
-<a href="https://mihon.app">
-    <img src="./.github/assets/logo.png" alt="Mihon logo" title="Mihon logo" width="80"/>
-</a>
+---
 
-# Mihon 超分版
+## ✨ 特性
 
-### 全功能漫画阅读器 + 实时超分辨率
-在你的 Android 设备上更轻松地发现和阅读漫画、条漫、漫画等内容，并享受实时超分辨率带来的清晰画面。
+- 🎨 **5 款内置 AI 超分模型** — Real-CUGAN (2x/4x) + Real-ESRGAN (Anime Fast/Plus, General Fast)
+- ⚡ **Vulkan GPU 加速** — 基于 NCNN 推理框架，利用手机 GPU 实现高速推理
+- 📖 **智能预加载** — 自动预加载当前页前后 5 张图片的超分结果，阅读零等待
+- 🔄 **渐进式替换** — 先显示原图，超分完成后自动替换，不阻塞阅读
+- 🖤 **黑白漫画优化** — 灰度级量化 + Otsu 二值化 + 点阵密度校正
+- 🎯 **SR 状态指示器** — 实时显示超分处理进度（进行中/已完成）
+- 💾 **多级缓存** — 内存缓存 + 磁盘缓存，避免重复处理
+- 🔧 **灵活配置** — 全局设置 + 单漫画设置，降噪/画质/灰度可调
 
-[![Discord server](https://img.shields.io/discord/1195734228319617024.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/mihon)
-[![License: Apache-2.0](https://img.shields.io/github/license/mihonapp/mihon?labelColor=27303D&color=0877d2)](/LICENSE)
+## 🤖 模型一览
 
-## 下载
+| 模型 | 倍率 | 大小 | 特点 |
+|------|------|------|------|
+| Real-CUGAN 2x-conservative | x2 | ~2MB | ⚡ 速度最快，2x 对漫画已足够 |
+| Real-CUGAN 4x-conservative | x4 | ~2.2MB | 快速 4x 放大 |
+| Real-ESRGAN Anime Fast | x4 | ~1.5MB | 动漫专用，体积最小 |
+| Real-ESRGAN Anime+ | x4 | ~5MB | 动漫增强，细节恢复最佳 |
+| Real-ESRGAN General Fast | x4 | ~3MB | 通用模型，强降噪场景 |
 
-*需要 Android 8.0 或更高版本。*
+**默认模型**：Real-CUGAN 2x-conservative（速度最快）
 
-## 特性
-
-<div align="left">
-
-* **实时超分辨率**
-  - Anime4K 实时算法（CPU，无需模型文件）
-  - Waifu2X（NCNN Vulkan GPU 加速）
-  - Real-ESRGAN（NCNN Vulkan GPU 加速）
-  - 支持 2x/3x/4x 放大倍率
-  - 可调节降噪级别（无/低/中/高）
-* 本地内容阅读
-* 可配置的阅读器，包含多种查看器、阅读方向和其他设置
-* 跟踪器支持：[MyAnimeList](https://myanimelist.net/)、[AniList](https://anilist.co/)、[Kitsu](https://kitsu.app/)、[MangaUpdates](https://mangaupdates.com)、[Shikimori](https://shikimori.one) 和 [Bangumi](https://bgm.tv/)
-* 分类组织你的书库
-* 亮/暗主题
-* 自动更新书库的新章节
-* 创建本地备份以便离线阅读，或备份到你想要的云服务
-* 以及更多...
-
-</div>
-
-## 超分辨率技术详解
-
-### 核心算法概览
-
-本项目集成了三种主流的超分辨率算法，针对漫画/动画图片进行优化：
-
-#### 1. Anime4K
-- **实现位置**: [Anime4KProcessor.kt](file:///workspace/mihon-source/core/superresolution/src/main/java/mihon/core/superresolution/Anime4KProcessor.kt)
-- **算法特点**: 实时 CPU 算法，无需模型文件，基于图像梯度和颜色空间的数学运算
-- **技术参数**:
-  - 迭代次数 (PASSES): 2
-  - 颜色强度 (STRENGTH_COLOR): 0.3
-  - 梯度强度 (STRENGTH_GRADIENT): 1.0
-- **优势**: 极快速度，无需额外模型，低内存占用
-- **使用场景**: 快速浏览，低配置设备
-
-#### 2. Waifu2X
-- **实现位置**: [Waifu2xProcessor.kt](file:///workspace/mihon-source/core/superresolution/src/main/java/mihon/core/superresolution/Waifu2xProcessor.kt)
-- **技术栈**: NCNN 神经网络 + Vulkan GPU 加速
-- **模型**: CNN 架构，专注于降噪和放大
-- **瓦片大小**: 200x200 像素（避免大内存占用）
-- **优势**: 质量高，GPU 加速性能优秀
-- **使用场景**: 高质量阅读，中高端设备
-
-#### 3. Real-ESRGAN (Anime)
-- **实现位置**: 预留接口，与 Waifu2X 共用 NCNN 框架
-- **技术栈**: NCNN + Vulkan 加速
-- **模型**: Real-ESRGAN 专为动漫优化的模型
-- **优势**: 最先进的超分效果，支持 2x/4x 缩放
-- **使用场景**: 最佳画质，高性能设备
-
-### 技术架构
+## 🏗️ 架构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Mihon 主程序                            │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────────────┐     ┌───────────────────────┐    │
-│  │  阅读器设置界面      │────▶│   超分设置管理        │    │
-│  │  (全局/单本设置)    │     │   (数据库 + 偏好)    │    │
-│  └──────────────────────┘     └───────────────────────┘    │
-│                                                              │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │                图片加载流程                            │ │
-│  │  ┌───────────────────────────────────────────────────┐ │ │
-│  │  │  Coil 3 Image Loader                              │ │ │
-│  │  ├───────────────────────────────────────────────────┤ │ │
-│  │  │  [SuperResolutionInterceptor]                      │ │ │
-│  │  │  (自动应用超分)                                   │ │ │
-│  │  └───────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                              │                               │
-├──────────────────────────────┼───────────────────────────────┤
-│                              ▼                               │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │           SuperResolutionManager                      │ │
-│  │  (核心调度 + 缓存管理 + 线程安全)                      │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                              │                               │
-│        ┌─────────────────────┼─────────────────────┐         │
-│        ▼                     ▼                     ▼         │
-│  ┌──────────────┐     ┌──────────────┐   ┌───────────────┐ │
-│  │Anime4K (CPU) │     │ Waifu2X (GPU)│   │Real-ESRGAN    │ │
-│  │  [Processor] │     │  [Processor] │   │  [Processor]  │ │
-│  └──────────────┘     └──────────────┘   └───────────────┘ │
-│                              │                               │
-├──────────────────────────────┼───────────────────────────────┤
-│                              ▼                               │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │        JNI (Java Native Interface)                    │ │
-│  │  ┌─────────────────┐ ┌─────────────────────────────┐  │ │
-│  │  │libanime4kcpp.so│ │libwaifu2x-ncnn-vulkan.so    │  │ │
-│  │  │(C++ native code)│ │(NCNN + Vulkan engine)       │  │ │
-│  │  └─────────────────┘ └─────────────────────────────┘  │ │
-│  └───────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+Mihon 主程序
+    │
+    ├─ 阅读器设置 (ReaderPreferences)
+    │   ├─ 全局超分设置 (srEnabled, srModel, srScale, srDenoiseLevel, srQuality)
+    │   └─ 单本设置 (MangaSrPreferences)
+    │
+    ├─ SuperResolutionSync (偏好→引擎同步)
+    │
+    └─ 图片加载 (Coil 3)
+        ├─ SuperResolutionInterceptor (预加载+渐进式替换)
+        └─ SRPreloadDispatcher (预加载调度)
+            └─ SuperResolutionManager (核心引擎管理)
+                ├─ RealESRGANProcessor (NCNN Vulkan 推理)
+                │   └─ C++ JNI (realesrgan_jni.cpp)
+                │       ├─ NCNN 推理 (Vulkan GPU)
+                │       └─ MangaBWPostProcessor (灰度后处理)
+                ├─ ModelManager (模型资产管理)
+                ├─ VulkanHelper (GPU 检测)
+                └─ SRDiskCache (磁盘缓存)
 ```
 
-### 关键技术实现
+## 🔑 核心设计
 
-#### 1. Coil 3 拦截器集成
-- **实现位置**: [SuperResolutionInterceptor.kt](file:///workspace/mihon-source/app/src/main/java/eu/kanade/tachiyomi/data/coil/SuperResolutionInterceptor.kt)
-- **工作流程**:
-  ```kotlin
-  ImageRequest → Chain.proceed() → SuccessResult → BitmapImage
-                                                      ↓
-                                              超分辨率处理
-                                                      ↓
-                                  Result.copy(image = srBitmap.asImage())
-  ```
-- **限制条件**: 仅处理 ARGB_8888 格式的图片，最大输入尺寸 2048x2048 像素
+### 防重影像素处理
 
-#### 2. LRU 缓存机制
-- **实现位置**: [SuperResolutionManager.kt](file:///workspace/mihon-source/core/superresolution/src/main/java/mihon/core/superresolution/SuperResolutionManager.kt#L19-L21)
-- **配置**: 最大缓存大小 = 应用可用内存的 1/8
-- **缓存键**: `{模型}_{宽}x{高}_{缩放倍率}`
-- **性能优化**: 避免重复处理相同图像
+在 Tile 切片推理中，框架高层 API 的隐式 RGBA↔RGB 转换可能导致通道错位产生重影。MangaSR v2 采用手动显式像素通道处理：
 
-#### 3. 线程安全与异步处理
-- **互斥锁**: 使用 `Mutex` 确保模型切换和处理过程线程安全
-- **协程调度**: IO 密集型操作使用 `Dispatchers.IO`，计算密集型使用 `Dispatchers.Default`
-- **生命周期管理**: 处理器自动释放资源
+```
+Bitmap (RGBA) ──手动提取 R,G,B──→ float[] (RGB) ──构造──→ ncnn::Mat (3ch)
+                                                              ↓
+                                                         NCNN 推理
+                                                              ↓
+ncnn::Mat (3ch) ──手动写回 R,G,B + A=255──→ Bitmap (RGBA)
+```
 
-#### 4. 模型管理
-- **模型存储**: 首次启动时从 APK assets 解压到 `files/models/` 目录
-- **动态切换**: 运行时无需重启即可切换模型和缩放倍率
-- **GPU 检测**: 自动检测 Vulkan 支持，降级回 CPU 方案
+**关键规则**：
+- Bitmap → NCNN Mat：手动逐像素提取 RGB，跳过 Alpha
+- NCNN Mat → Bitmap：手动逐像素写回 RGBA，Alpha 固定为 255
+- 禁止使用 `ncnn::Mat::from_pixels(PIXEL_RGBA2RGB)` 等自动转换
+- 归一化/反归一化在显式代码中完成
 
-### 已实现功能
+### 预加载 + 渐进式替换
 
-| 功能 | 状态 | 技术实现 |
-|------|------|----------|
-| Anime4K CPU 算法 | ✅ 完整实现 | 纯 C++ 数学运算，无模型文件 |
-| Waifu2X NCNN Vulkan | ✅ 完整实现 | NCNN 框架 + Vulkan 加速，瓦片处理 |
-| Real-ESRGAN NCNN Vulkan | 🔄 预留 | NCNN 框架 + 优化模型 |
-| 全局超分设置 | ✅ | Preferences 持久化存储 |
-| 单本超分设置 | ✅ | 数据库字段 + MangaSrPreferences 代理 |
-| 2x/3x/4x 缩放 | ✅ | 模型支持的缩放倍率列表 |
-| 降噪级别调节 | ✅ | 0-3 级噪音移除参数 |
-| GPU 加速检测 | ✅ | VulkanHelper.isVulkanSupported() |
-| 模型文件下载 | ✅ | 内置到 APK assets，首次启动解压 |
-| LRU 缓存优化 | ✅ | Android.util.LruCache |
-| 数据库迁移 | ✅ | SQLDelight schema update |
+1. 用户翻页时，`SRPreloadDispatcher` 触发后续 5 页的预加载
+2. `SuperResolutionInterceptor` 优先查询预加载缓存
+3. 缓存未命中时返回原图，后台异步处理
+4. 处理完成后通过 `srResultFlow` 通知 UI 刷新
 
-## 性能优化策略
+## 📁 项目结构
 
-1. **条件应用**: 仅在用户开启超分时才应用处理
-2. **尺寸限制**: 跳过大于 2048x2048 的图像
-3. **内存管理**: 最大输入尺寸限制 + LRU 缓存
-4. **GPU 优先**: 检测 Vulkan 支持并优先使用
-5. **瓦片处理**: 大图像分片处理，避免 OOM
-6. **线程安全**: Mutex 保证并发安全
+```
+core/superresolution/
+├── src/main/
+│   ├── java/mihon/core/superresolution/
+│   │   ├── SRModel.kt                    # 5 款模型枚举
+│   │   ├── DenoiseLevel.kt               # 降噪等级 (OFF/LIGHT/STRONG)
+│   │   ├── Quality.kt                    # 画质预设 (FAST/BALANCED/HIGH)
+│   │   ├── SuperResolutionProcessor.kt   # 处理器接口
+│   │   ├── RealESRGANProcessor.kt        # Real-ESRGAN/CUGAN 实现
+│   │   ├── SuperResolutionManager.kt     # 核心引擎管理器
+│   │   ├── SRPreloadDispatcher.kt        # 预加载调度器
+│   │   ├── SRDiskCache.kt               # 磁盘缓存
+│   │   ├── ModelManager.kt              # 模型资产管理
+│   │   ├── VulkanHelper.kt              # Vulkan GPU 检测
+│   │   ├── NativeLibraryStatus.kt       # 原生库状态
+│   │   ├── NoOpProcessor.kt             # 降级处理器
+│   │   ├── MangaBWPostProcessConfig.kt  # 黑白漫画后处理配置
+│   │   ├── ColorMode.kt                 # 颜色模式
+│   │   ├── SRStatusInfo.kt              # SR 状态数据
+│   │   ├── SRStatusViewModel.kt         # SR 状态 ViewModel
+│   │   ├── SRIndicatorPosition.kt        # 指示器位置
+│   │   └── SRIndicatorDisplayMode.kt    # 指示器显示模式
+│   ├── cpp/
+│   │   ├── CMakeLists.txt               # CMake 构建配置
+│   │   ├── realesrgan_jni.cpp           # JNI 桥接层
+│   │   ├── realesrgan_wrapper.h/cpp     # NCNN 推理引擎
+│   │   ├── manga_bw_postprocessor.h/cpp # 黑白漫画后处理
+│   │   └── ncnn/                        # NCNN 预编译库 (已内置)
+│   └── assets/models/                   # 内置模型文件 (已内置)
+```
 
-## 编译
+## 🔨 构建指南
+
+### 前置要求
+
+- Android Studio Hedgehog+
+- Android SDK 37
+- NDK 27.0.12077973
+- CMake 3.22.1+
+
+### 内置依赖
+
+✅ **所有构建依赖已内置**，克隆后直接构建！
+
+| 组件 | 大小 | 说明 |
+|------|------|------|
+| NCNN v20250915 (Vulkan) | ~49MB | Android 推理框架 |
+| 5 款 AI 超分模型 | ~13.7MB | Real-CUGAN + Real-ESRGAN |
+| C++ 推理引擎 | 源代码 | NCNN Vulkan + 黑白后处理 |
+
+### 构建
 
 ```bash
-# 克隆项目
-git clone https://github.com/timyang2005/mihon-super-resolution.git
-cd mihon-super-resolution
+# 克隆仓库
+git clone https://github.com/timyang2005/MangaSR-v2.git
+cd MangaSR-v2
 
-# 构建调试版本
+# 构建 Debug APK
 ./gradlew assembleDebug
+
+# 构建 Release APK
+./gradlew assembleRelease
 ```
 
-## 参与贡献
+## 📊 包体积估算
 
-[行为准则](./CODE_OF_CONDUCT.md) · [贡献指南](./CONTRIBUTING.md)
+| 组件 | 大小 |
+|------|------|
+| NCNN 静态库 | ~1.5MB |
+| librealesrgan-ncnn-vulkan.so | ~0.5MB |
+| 内置模型 (5个, FP16) | ~13.7MB |
+| C++ SR Engine + PostProcessor | ~0.3MB |
+| Kotlin 层 | ~0.2MB |
+| **总计增量** | **~16.2MB** |
 
-欢迎提交 Pull Request。对于重大更改，请先打开 Issue 讨论你想要更改的内容。
+## 🎮 使用说明
 
-在报告新 Issue 之前，请查看 [FAQ](https://mihon.app/docs/faq/general)、[更新日志](https://mihon.app/changelogs/) 和已打开的 [Issues](https://github.com/mihonapp/mihon/issues)；如果你有任何问题，请加入我们的 [Discord 服务器](https://discord.gg/mihon)。
+1. 在阅读器设置中启用「超分辨率」
+2. 选择超分模型（推荐 Real-CUGAN 2x）
+3. 选择降噪等级（轻度/强度/关闭）
+4. 选择画质预设（快速/均衡/高质量）
+5. 翻页阅读，SR 自动处理并替换
 
-### 致谢
+### 自动模型选择
 
-感谢所有做出贡献的人！
+| 缩放 | 降噪 | 画质 | 自动选择模型 |
+|------|------|------|-------------|
+| x2 | 任意 | — | Real-CUGAN 2x-conservative |
+| x4 | 关闭/轻度 | 快速/均衡 | Real-ESRGAN Anime Fast |
+| x4 | 关闭/轻度 | 高质量 | Real-ESRGAN Anime+ |
+| x4 | 强度 | — | Real-ESRGAN General Fast |
 
-<a href="https://github.com/mihonapp/mihon/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=mihonapp/mihon" alt="Mihon app contributors" title="Mihon app contributors" width="800"/>
-</a>
+## 📜 开发计划
 
-### 免责声明
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| Phase 1 | C++ 推理引擎: NCNN 集成 + Real-CUGAN 跑通 | ✅ |
+| Phase 2 | RealESRGANProcessor + SRModel 修改 + 引擎替换 | ✅ |
+| Phase 3 | 黑白漫画后处理管线 (manga_bw_postprocessor) | ✅ |
+| Phase 4 | 预加载调度器 + Interceptor 重构 + 渐进式替换 | ✅ |
+| Phase 5 | 设置页面更新 + 模型适配 | ✅ |
+| Phase 6 | 性能优化 + 磁盘缓存 + 测试 | ✅ |
 
-此应用程序的开发者与任何可用的内容提供商没有任何关联，且此应用程序不托管任何内容。
+## 🙏 致谢
 
-### 许可证
+- [Mihon](https://github.com/mihonapp/mihon) — 开源漫画阅读器框架
+- [NCNN](https://github.com/nihui/ncnn) — 高性能神经网络推理框架
+- [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) — 超分辨率模型
+- [Real-CUGAN](https://github.com/nihui/realcugan-ncnn-vulkan) — 超分辨率模型
+- [mihon-super-resolution](https://github.com/timyang2005/mihon-super-resolution) — 前代项目 (Anime4K)
 
-<pre>
-Copyright © 2015 Javier Tomás
-Copyright © 2024 Mihon Open Source Project
-Copyright © 2026 Super Resolution Edition
+## 📄 许可证
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-</pre>
-
-</div>
+本项目基于 [Mihon](https://github.com/mihonapp/mihon) 修改，遵循其原始许可证。
