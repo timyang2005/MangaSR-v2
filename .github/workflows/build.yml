@@ -30,6 +30,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Git LFS
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Verify NCNN libraries
+        run: |
+          echo "=== NCNN Library Files ==="
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            echo "Checking $abi:"
+            ls -la core/superresolution/src/main/cpp/ncnn/lib/$abi/libncnn.a 2>/dev/null || echo "NOT FOUND"
+            file core/superresolution/src/main/cpp/ncnn/lib/$abi/libncnn.a 2>/dev/null || true
+          done
 
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -56,12 +73,6 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-      - name: Check NCNN library
-        run: |
-          echo "=== NCNN Library Status ==="
-          ls -la core/superresolution/src/main/cpp/ncnn/ 2>/dev/null || true
-          ls -la core/superresolution/src/main/assets/models/ 2>/dev/null || true
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
