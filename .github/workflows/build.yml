@@ -56,7 +56,7 @@ jobs:
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-37" "build-tools;37.0.0" 2>&1 || true
           ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || true
 
-      - name: Download NCNN libraries
+      - name: Download NCNN Vulkan library
         run: |
           set -e
           NCNN_VERSION="20260112"
@@ -67,29 +67,33 @@ jobs:
           mkdir -p ${NCNN_DIR}/lib/x86_64
           mkdir -p ${NCNN_DIR}/include/ncnn
           
-          echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android libraries..."
+          echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android library..."
           
-          for ABI in arm64-v8a armeabi-v7a x86_64; do
-            echo "Downloading for $ABI..."
-            ASSET_URL="https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan-${ABI}.zip"
-            curl -L -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/octet-stream" \
-              "$ASSET_URL" \
-              -o "/tmp/ncnn-${ABI}.zip"
+          curl -L -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan.zip" \
+            -o "/tmp/ncnn-android-vulkan.zip"
+          
+          if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
+            unzip -q -o "/tmp/ncnn-android-vulkan.zip" -d "/tmp/ncnn-android-vulkan"
+            ls -la /tmp/ncnn-android-vulkan/
             
-            if [ -f "/tmp/ncnn-${ABI}.zip" ] && unzip -t "/tmp/ncnn-${ABI}.zip" > /dev/null 2>&1; then
-              unzip -q -o "/tmp/ncnn-${ABI}.zip" -d "/tmp/ncnn-${ABI}"
-              cp /tmp/ncnn-${ABI}/lib/*.a ${NCNN_DIR}/lib/${ABI}/ 2>/dev/null || true
-              ls -la ${NCNN_DIR}/lib/${ABI}/
-            else
-              echo "Failed to download valid zip for $ABI"
-              cat /tmp/ncnn-${ABI}.zip 2>/dev/null | head -1 || echo "Empty file"
+            for ABI in arm64-v8a armeabi-v7a x86_64; do
+              if [ -d "/tmp/ncnn-android-vulkan/lib/${ABI}" ]; then
+                cp /tmp/ncnn-android-vulkan/lib/${ABI}/*.a ${NCNN_DIR}/lib/${ABI}/ 2>/dev/null || true
+                ls -la ${NCNN_DIR}/lib/${ABI}/
+              else
+                echo "ABI directory not found: $ABI"
+              fi
+            done
+            
+            if [ -d "/tmp/ncnn-android-vulkan/include" ]; then
+              cp -r /tmp/ncnn-android-vulkan/include/* ${NCNN_DIR}/include/ 2>/dev/null || true
+              ls -la ${NCNN_DIR}/include/
             fi
-          done
-          
-          if [ -d "/tmp/ncnn-arm64-v8a" ]; then
-            cp -r /tmp/ncnn-arm64-v8a/include/* ${NCNN_DIR}/include/ 2>/dev/null || true
-            ls -la ${NCNN_DIR}/include/
+          else
+            echo "Failed to download NCNN"
+            ls -la /tmp/
           fi
 
       - name: Cache Gradle dependencies
