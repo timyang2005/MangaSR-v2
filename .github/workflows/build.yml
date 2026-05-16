@@ -44,18 +44,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          api-level: 37
 
-      - name: Setup Android NDK
+      - name: Install Android NDK and SDK components
         run: |
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" 2>/dev/null || true
-          if [ -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973" ]; then
-            echo "NDK 27.0.12077973 already installed"
-          else
-            echo "Installing NDK..."
-            yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" || echo "NDK install may have failed"
-          fi
+          export ANDROID_SDK_ROOT=/opt/android-sdk
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-37" "build-tools;37.0.0" 2>&1 || echo "SDK install completed"
+          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || echo "Checking NDK..."
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
