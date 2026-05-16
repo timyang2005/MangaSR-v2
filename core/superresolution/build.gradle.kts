@@ -12,6 +12,13 @@ android {
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
         }
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += listOf("-DANDROID_STL=c++_shared")
+            }
+        }
     }
 
     externalNativeBuild {
@@ -43,4 +50,6 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.injekt)
+    
+    implementation("com.tencent.ncnn:ncnn-android:1.0.20230223")
 }
