@@ -11,13 +11,13 @@ add_library(realesrgan-ncnn-vulkan SHARED
 
 target_include_directories(realesrgan-ncnn-vulkan PRIVATE
     ${CMAKE_SOURCE_DIR}/ncnn/include
-    ${CMAKE_SOURCE_DIR}/ncnn/include/ncnn
 )
 
-set(NCNN_LIB_DIR ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI})
+find_library(ANDROID_LOG log)
+find_library(ANDROID_JNIGRAPHICS jnigraphics)
 
 target_link_libraries(realesrgan-ncnn-vulkan
-    ${NCNN_LIB_DIR}/libncnn.a
+    ncnn
     android
     log
     jnigraphics
