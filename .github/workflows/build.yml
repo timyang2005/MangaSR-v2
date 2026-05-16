@@ -57,6 +57,7 @@ jobs:
 
       - name: Download NCNN Vulkan libraries
         run: |
+          set -e
           NCNN_VERSION="20240711"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
           
@@ -86,7 +87,7 @@ jobs:
 
       - name: Update CMakeLists to use downloaded libraries
         run: |
-          cat > core/superresolution/src/main/cpp/CMakeLists.txt << 'EOF'
+          cat > core/superresolution/src/main/cpp/CMakeLists.txt << CMAKE_EOF
 cmake_minimum_required(VERSION 3.22.1)
 project(mihon_superresolution)
 
@@ -103,21 +104,20 @@ add_library(realesrgan-ncnn-vulkan SHARED
 )
 
 target_include_directories(realesrgan-ncnn-vulkan PRIVATE
-    ${CMAKE_SOURCE_DIR}/ncnn/include
-    ${CMAKE_SOURCE_DIR}/ncnn/include/ncnn
+    \${CMAKE_SOURCE_DIR}/ncnn/include
+    \${CMAKE_SOURCE_DIR}/ncnn/include/ncnn
 )
 
-set(NCNN_LIB_DIR ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI})
+set(NCNN_LIB_DIR \${CMAKE_SOURCE_DIR}/ncnn/lib/\${ANDROID_ABI})
 
 target_link_libraries(realesrgan-ncnn-vulkan
-    ${NCNN_LIB_DIR}/libncnn.a
+    \${NCNN_LIB_DIR}/libncnn.a
     android
     log
     jnigraphics
     vulkan
 )
-EOF
-          cat core/superresolution/src/main/cpp/CMakeLists.txt
+CMAKE_EOF
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
