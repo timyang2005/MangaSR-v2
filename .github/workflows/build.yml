@@ -59,9 +59,8 @@ jobs:
       - name: Download NCNN libraries
         run: |
           set -e
-          NCNN_VERSION="20260113"
+          NCNN_VERSION="20260112"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
-          GH_API="https://api.github.com/repos/nihui/ncnn/releases"
           
           mkdir -p ${NCNN_DIR}/lib/arm64-v8a
           mkdir -p ${NCNN_DIR}/lib/armeabi-v7a
