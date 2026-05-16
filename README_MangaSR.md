@@ -111,8 +111,8 @@ core/superresolution/
 │   │   ├── realesrgan_jni.cpp           # JNI 桥接层
 │   │   ├── realesrgan_wrapper.h/cpp     # NCNN 推理引擎
 │   │   ├── manga_bw_postprocessor.h/cpp # 黑白漫画后处理
-│   │   └── ncnn/                        # NCNN 预编译库 (需手动放置)
-│   └── assets/models/                   # 内置模型文件 (需手动放置 .param/.bin)
+│   │   └── ncnn/                        # NCNN 预编译库 (已内置)
+│   └── assets/models/                   # 内置模型文件 (已内置)
 ```
 
 ## 🔨 构建指南
@@ -124,40 +124,28 @@ core/superresolution/
 - NDK 27.0.12077973
 - CMake 3.22.1+
 
-### 模型文件（已内置）
+### 内置依赖
 
-✅ **所有 5 款 AI 超分模型已内置在 APK 中**，无需手动下载！
+✅ **所有构建依赖已内置**，克隆后直接构建！
 
-| 模型 | 倍率 | 大小 |
+| 组件 | 大小 | 说明 |
 |------|------|------|
-| Real-CUGAN 2x-conservative | x2 | ~2MB |
-| Real-CUGAN 4x-conservative | x4 | ~2.2MB |
-| Real-ESRGAN Anime Fast | x4 | ~1.5MB |
-| Real-ESRGAN Anime+ | x4 | ~5MB |
-| Real-ESRGAN General Fast | x4 | ~3MB |
-
-### 准备 NCNN 库（仅需此步）
-
-1. 运行自动准备脚本：
-   ```bash
-   # Linux/macOS
-   ./prepare-build.sh
-
-   # Windows
-   prepare-build.bat
-   ```
-
-   脚本会自动从 GitHub 镜像下载 NCNN 预编译库并放置到正确位置。
-
-   或者手动下载：
-   1. 从 [NCNN Releases](https://github.com/nihui/ncnn/releases) 下载 Android 预编译库
-   2. 将头文件放置到 `core/superresolution/src/main/cpp/ncnn/include/`
-   3. 将静态库按 ABI 放置到 `core/superresolution/src/main/cpp/ncnn/lib/`
+| NCNN v20250915 (Vulkan) | ~49MB | Android 推理框架 |
+| 5 款 AI 超分模型 | ~13.7MB | Real-CUGAN + Real-ESRGAN |
+| C++ 推理引擎 | 源代码 | NCNN Vulkan + 黑白后处理 |
 
 ### 构建
 
 ```bash
+# 克隆仓库
+git clone https://github.com/timyang2005/MangaSR-v2.git
+cd MangaSR-v2
+
+# 构建 Debug APK
 ./gradlew assembleDebug
+
+# 构建 Release APK
+./gradlew assembleRelease
 ```
 
 ## 📊 包体积估算
