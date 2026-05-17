@@ -97,12 +97,13 @@ class SuperResolutionInterceptor(
         }
 
         val key = cacheKey
-        srScope.launch {
+        val versionAtStart = manager.currentModelVersion()
+        val job = srScope.launch {
             try {
                 val startTime = System.currentTimeMillis()
                 logcat(LogPriority.INFO) { "SR: Background processing ch$chapterId p$pageIndex ${inputBitmap.width}x${inputBitmap.height}" }
 
-                val srBitmap = manager.process(inputBitmap)
+                val srBitmap = manager.process(inputBitmap, versionAtStart)
                 val elapsed = System.currentTimeMillis() - startTime
 
                 if (srBitmap !== inputBitmap) {
@@ -122,6 +123,7 @@ class SuperResolutionInterceptor(
                 synchronized(processingKeys) { processingKeys.remove(key) }
             }
         }
+        manager.registerProcessingJob(job)
 
         return result
     }

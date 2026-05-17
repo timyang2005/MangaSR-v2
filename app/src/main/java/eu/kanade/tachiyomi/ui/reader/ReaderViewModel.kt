@@ -772,6 +772,21 @@ class ReaderViewModel @JvmOverloads constructor(
         }
     }
 
+    fun clearAllSrBitmaps() {
+        state.value.viewerChapters?.let { chapters ->
+            chapters.currChapter?.pages?.forEach { page ->
+                if (page is ReaderPage) page.srBitmap = null
+            }
+            chapters.prevChapter?.pages?.forEach { page ->
+                if (page is ReaderPage) page.srBitmap = null
+            }
+            chapters.nextChapter?.pages?.forEach { page ->
+                if (page is ReaderPage) page.srBitmap = null
+            }
+        }
+        mutableState.update { it.copy(srCompleted = false) }
+    }
+
     fun showMenus(visible: Boolean) {
         mutableState.update { it.copy(menuVisible = visible) }
     }

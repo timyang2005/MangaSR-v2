@@ -201,6 +201,12 @@ class ReaderActivity : BaseActivity() {
         config = ReaderConfig()
         setMenuVisibility(viewModel.state.value.menuVisible)
 
+        srManager.onModelSwitching = {
+            runOnUiThread {
+                viewModel.clearAllSrBitmaps()
+            }
+        }
+
         // Finish when incognito mode is disabled
         preferences.incognitoMode.changes()
             .drop(1)

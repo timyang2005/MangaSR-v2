@@ -2,7 +2,9 @@ package mihon.core.superresolution
 
 import android.content.Context
 import android.graphics.Bitmap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -25,9 +27,17 @@ class SuperResolutionManager(
     private var currentDenoiseLevel: DenoiseLevel = DenoiseLevel.LIGHT
     private var currentBwConfig: MangaBWPostProcessConfig? = null
 
+    private var processingJobs = mutableListOf<Job>()
+    private val jobsMutex = Any()
+
+    @Volatile
+    private var modelVersion: Long = 0
+
     @Volatile
     var readerOverride: Boolean = false
         private set
+
+    var onModelSwitching: (() -> Unit)? = null
 
     val isReady: Boolean
         get() = currentProcessor?.isReady == true
@@ -60,6 +70,25 @@ class SuperResolutionManager(
         logcat(LogPriority.INFO) { "SR: Cleared SR result cache" }
     }
 
+    fun registerProcessingJob(job: Job) {
+        synchronized(jobsMutex) {
+            processingJobs.add(job)
+        }
+        job.invokeOnCompletion {
+            synchronized(jobsMutex) {
+                processingJobs.remove(job)
+            }
+        }
+    }
+
+    private fun cancelAllProcessingJobs() {
+        synchronized(jobsMutex) {
+            logcat(LogPriority.INFO) { "SR: Cancelling ${processingJobs.size} processing jobs" }
+            processingJobs.forEach { it.cancel() }
+            processingJobs.clear()
+        }
+    }
+
     suspend fun switchModel(
         model: SRModel,
         scale: Int = 2,
@@ -76,9 +105,14 @@ class SuperResolutionManager(
                 return@withLock
             }
 
+            cancelAllProcessingJobs()
+
+            onModelSwitching?.invoke()
+
             currentProcessor?.release()
             currentProcessor = null
             currentModel = null
+            modelVersion++
             clearSrCache()
 
             val processor = createProcessor(model)
@@ -115,10 +149,15 @@ class SuperResolutionManager(
         }
     }
 
-    suspend fun process(input: Bitmap): Bitmap = mutex.withLock {
+    suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
         val processor = currentProcessor
         if (processor == null || !processor.isReady) {
             logcat(LogPriority.DEBUG) { "SR: No processor ready, returning original" }
+            return input
+        }
+
+        if (versionAtStart != modelVersion) {
+            logcat(LogPriority.DEBUG) { "SR: Model switched during processing, discarding result" }
             return input
         }
 
@@ -133,12 +172,19 @@ class SuperResolutionManager(
                     input, currentScale,
                     currentDenoiseLevel, denoiseStrength, currentBwConfig,
                 )
+                if (versionAtStart != modelVersion) {
+                    logcat(LogPriority.DEBUG) { "SR: Model switched during inference, discarding result" }
+                    return@withContext input
+                }
                 if (result !== input) {
                     logcat(LogPriority.INFO) {
                         "SR: Processed ${input.width}x${input.height} -> ${result.width}x${result.height}"
                     }
                 }
                 result
+            } catch (e: CancellationException) {
+                logcat(LogPriority.DEBUG) { "SR: Processing cancelled" }
+                input
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR) { "SR processing failed\n${e.asLog()}" }
                 input
@@ -146,10 +192,14 @@ class SuperResolutionManager(
         }
     }
 
+    fun currentModelVersion(): Long = modelVersion
+
     fun release() {
+        cancelAllProcessingJobs()
         currentProcessor?.release()
         currentProcessor = null
         currentModel = null
+        modelVersion++
         clearSrCache()
     }
 
