@@ -106,25 +106,30 @@ jobs:
             exit 1
           fi
           
-          # Download ncnn headers from GitHub (prebuilt package does not include headers)
-          echo "Downloading ncnn headers from GitHub..."
-          mkdir -p "${NCNN_DIR}/include/ncnn"
-          curl -sL "https://raw.githubusercontent.com/nihui/ncnn/main/include/ncnn/allocator.h" \
-            -o "${NCNN_DIR}/include/ncnn/allocator.h"
-          
-          # Download all headers
-          HEADERS="benchmark.h blob.h c_api.h cpu.h datareader.h filemapper.h gpu.h \
-            layer.h layer_shader_registry.h layer_type_enum.h layer_type.h mat.h \
-            modelbin.h net.h object.h op.h paramdict.h pipeline.h platform.h \
-            simpleocv.h"
-          for h in $HEADERS; do
-            echo "  downloading include/ncnn/$h"
-            curl -sL "https://raw.githubusercontent.com/nihui/ncnn/main/include/ncnn/$h" \
-              -o "${NCNN_DIR}/include/ncnn/$h"
-          done
-          
-          echo "=== NCNN headers ==="
-          ls -la ${NCNN_DIR}/include/ncnn/
+          # Download ncnn headers from source tarball (prebuilt package does not include headers)
+          echo "Downloading ncnn headers from source tarball..."
+          curl -sL "https://github.com/nihui/ncnn/archive/refs/tags/${NCNN_VERSION}.tar.gz" \
+            -o "/tmp/ncnn-headers.tar.gz"
+          if [ -f "/tmp/ncnn-headers.tar.gz" ]; then
+            echo "ncnn source tarball downloaded, extracting headers..."
+            mkdir -p /tmp/_ncnn_headers_extract
+            tar -xzf "/tmp/ncnn-headers.tar.gz" -C "/tmp/_ncnn_headers_extract"
+            HEADER_DIR=$(find /tmp/_ncnn_headers_extract -maxdepth 2 -type d -name "ncnn-${NCNN_VERSION}" | head -n 1)
+            if [ -n "${HEADER_DIR}" ]; then
+              mkdir -p "${NCNN_DIR}/include"
+              cp -r "${HEADER_DIR}/include/ncnn" "${NCNN_DIR}/include/"
+              echo "=== NCNN headers ==="
+              ls -la ${NCNN_DIR}/include/ncnn/
+            else
+              echo "ERROR: Could not find ncnn source directory in tarball"
+              ls -la /tmp/_ncnn_headers_extract/
+              exit 1
+            fi
+            rm -rf /tmp/ncnn-headers.tar.gz /tmp/_ncnn_headers_extract
+          else
+            echo "ERROR: Failed to download ncnn source tarball"
+            exit 1
+          fi
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
