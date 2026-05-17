@@ -20,7 +20,7 @@ env:
   JAVA_VERSION: '17'
   ANDROID_HOME: /usr/local/lib/android/sdk
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-  GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
+  GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3072m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -153,7 +153,7 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew clean assemble${{ env.BUILD_TYPE }} --no-daemon --info 2>&1 | tee build.log
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info 2>&1 | tee build.log
           BUILD_EXIT=${PIPESTATUS[0]}
           
           echo "=== Build output ==="
