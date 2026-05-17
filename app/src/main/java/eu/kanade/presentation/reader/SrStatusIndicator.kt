@@ -20,6 +20,10 @@ import mihon.core.superresolution.SRIndicatorDisplayMode
 import mihon.core.superresolution.SRIndicatorPosition
 import mihon.core.superresolution.SRStatus
 import mihon.core.superresolution.SRStatusInfo
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Image
 
 @Composable
 fun SRStatusIndicator(
@@ -36,13 +40,17 @@ fun SRStatusIndicator(
         SRStatus.IDLE -> Color(0xFF999999)
     }
 
-    val displayText = when (statusInfo.status) {
-        SRStatus.PROCESSING -> "\uD83D\uDD34 超分中"
-        SRStatus.DONE -> "\uD83D\uDFE2 超分完成${statusInfo.elapsedMs?.let { " ${it}ms" } ?: ""}"
-        SRStatus.IDLE -> ""
+    val icon = when (statusInfo.status) {
+        SRStatus.PROCESSING -> Icons.Default.Autorenew
+        SRStatus.DONE -> Icons.Default.CheckCircle
+        SRStatus.IDLE -> Icons.Default.Image
     }
 
-    if (statusInfo.status == SRStatus.IDLE && displayMode != SRIndicatorDisplayMode.ICON_AND_TEXT) return
+    val labelText = when (statusInfo.status) {
+        SRStatus.PROCESSING -> "SR"
+        SRStatus.DONE -> "SR${statusInfo.elapsedMs?.let { " ${it}ms" } ?: ""}"
+        SRStatus.IDLE -> "SR"
+    }
 
     val alignment = position.toAlignment()
 
@@ -65,18 +73,16 @@ fun SRStatusIndicator(
                 .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         ) {
-            Text(
-                text = when (statusInfo.status) {
-                    SRStatus.PROCESSING -> "\uD83D\uDD34"
-                    SRStatus.DONE -> "\uD83D\uDFE2"
-                    SRStatus.IDLE -> "\u26AA"
-                },
-                fontSize = 12.sp,
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(14.dp),
             )
-            if (displayMode == SRIndicatorDisplayMode.ICON_AND_TEXT && statusInfo.status != SRStatus.IDLE) {
+            if (displayMode == SRIndicatorDisplayMode.ICON_AND_TEXT) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = displayText,
+                    text = labelText,
                     color = Color.White,
                     fontSize = 10.sp,
                 )

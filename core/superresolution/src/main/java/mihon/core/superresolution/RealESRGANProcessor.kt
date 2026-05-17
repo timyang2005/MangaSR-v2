@@ -2,6 +2,7 @@ package mihon.core.superresolution
 
 import android.graphics.Bitmap
 import logcat.LogPriority
+import logcat.asLog
 import logcat.logcat
 
 class RealESRGANProcessor(
@@ -15,7 +16,7 @@ class RealESRGANProcessor(
 
     override suspend fun initialize(modelPath: String, gpuid: Int) {
         if (!nativeLibraryLoaded) {
-            logcat(LogPriority.ERROR) { "RealESRGAN native library not available" }
+            logcat(LogPriority.ERROR) { "RealESRGAN native library not available for ${model.key}" }
             return
         }
         if (handle != 0L) release()
@@ -70,7 +71,10 @@ class RealESRGANProcessor(
                 logcat(LogPriority.INFO) { "librealesrgan-ncnn-vulkan.so loaded successfully" }
                 true
             } catch (e: UnsatisfiedLinkError) {
-                logcat(LogPriority.ERROR) { "Failed to load librealesrgan-ncnn-vulkan.so: ${e.message}" }
+                logcat(LogPriority.ERROR) { "Failed to load librealesrgan-ncnn-vulkan.so: ${e.message}\n${e.asLog()}" }
+                false
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) { "Unexpected error loading librealesrgan-ncnn-vulkan.so: ${e.message}\n${e.asLog()}" }
                 false
             }
         }
