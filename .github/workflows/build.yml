@@ -112,14 +112,31 @@ jobs:
             -o "/tmp/ncnn-headers.tar.gz"
           if [ -f "/tmp/ncnn-headers.tar.gz" ]; then
             echo "ncnn source tarball downloaded, extracting headers..."
+            rm -rf /tmp/_ncnn_headers_extract
             mkdir -p /tmp/_ncnn_headers_extract
             tar -xzf "/tmp/ncnn-headers.tar.gz" -C "/tmp/_ncnn_headers_extract"
             HEADER_DIR=$(find /tmp/_ncnn_headers_extract -maxdepth 2 -type d -name "ncnn-${NCNN_VERSION}" | head -n 1)
             if [ -n "${HEADER_DIR}" ]; then
-              mkdir -p "${NCNN_DIR}/include"
-              cp -r "${HEADER_DIR}/include/ncnn" "${NCNN_DIR}/include/"
-              echo "=== NCNN headers ==="
-              ls -la ${NCNN_DIR}/include/ncnn/
+              echo "Headers found at: ${HEADER_DIR}"
+              echo "Source directory structure:"
+              ls -la ${HEADER_DIR}/
+              ls -la ${HEADER_DIR}/src/ 2>/dev/null | head -20 || echo "No src/ directory"
+              # ncnn source places headers in src/ directory (not include/ncnn/)
+              mkdir -p "${NCNN_DIR}/include/ncnn"
+              cp -v ${HEADER_DIR}/src/*.h "${NCNN_DIR}/include/ncnn/" 2>/dev/null || true
+              echo "=== Copied headers ==="
+              find ${NCNN_DIR}/include -name "*.h" | head -20
+              # Verify key headers exist
+              if [ -f "${NCNN_DIR}/include/ncnn/net.h" ]; then
+                echo "SUCCESS: net.h found"
+              else
+                echo "WARNING: net.h missing, listing src/ .h files:"
+                ls ${HEADER_DIR}/src/*.h 2>/dev/null | head -20 || echo "No .h files in src/"
+                ls -la ${HEADER_DIR}/src/ 2>/dev/null | head -20
+                echo "Debug: listing all directories"
+                ls -d ${HEADER_DIR}/*/
+                exit 1
+              fi
             else
               echo "ERROR: Could not find ncnn source directory in tarball"
               ls -la /tmp/_ncnn_headers_extract/
