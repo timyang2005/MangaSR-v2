@@ -33,7 +33,6 @@ android {
     sourceSets {
         getByName("main") {
             assets.srcDirs("src/main/assets")
-            jniLibs.srcDirs("src/main/jniLibs")
         }
     }
 }
