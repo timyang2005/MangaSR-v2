@@ -106,17 +106,28 @@ jobs:
             # Copy everything (libs + headers + cmake)
             cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/"
             
+            # Prebuilt zip has headers inside each ABI folder (arm64-v8a/include/ncnn/...)
+            # CMakeLists.txt expects them at ncnn/include/ncnn/...
+            # Copy headers from the first available ABI to the expected location
+            echo "=== Fixing header location for CMake ==="
+            for ABI_DIR in arm64-v8a armeabi-v7a x86_64; do
+              if [ -d "${NCNN_DIR}/${ABI_DIR}/include" ]; then
+                echo "Copying headers from ${ABI_DIR}/include to include/"
+                cp -r "${NCNN_DIR}/${ABI_DIR}/include" "${NCNN_DIR}/include"
+                break
+              fi
+            done
+            
             echo "=== NCNN directory structure ==="
             ls -la ${NCNN_DIR}/
             find ${NCNN_DIR} -type f -name "*.a" -o -name "*.h" | head -40
             
             # Verify key headers exist
             echo "=== Verifying headers ==="
-            find ${NCNN_DIR}/arm64-v8a/include -name "*.h" | head -10 || true
-            if [ -f "${NCNN_DIR}/arm64-v8a/include/ncnn/net.h" ]; then
-              echo "SUCCESS: net.h found in prebuilt package"
+            if [ -f "${NCNN_DIR}/include/ncnn/net.h" ]; then
+              echo "SUCCESS: net.h found at include/ncnn/net.h"
             else
-              echo "WARNING: net.h not found, listing all .h files..."
+              echo "WARNING: net.h not found at expected location, listing all .h files..."
               find ${NCNN_DIR} -name "*.h" | head -20
               exit 1
             fi
