@@ -62,38 +62,40 @@ jobs:
           NCNN_VERSION="20260112"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
           
-          # Remove any existing NCNN directory
+          # Completely remove existing NCNN directory and recreate
           rm -rf ${NCNN_DIR}
           mkdir -p ${NCNN_DIR}
           
           echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android library..."
           
-          # Download directly to project directory
+          # Download to temp location first
           curl -L -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/octet-stream" \
             "https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan.zip" \
-            -o "${NCNN_DIR}/ncnn.zip"
+            -o "/tmp/ncnn-${NCNN_VERSION}.zip"
           
-          if [ -f "${NCNN_DIR}/ncnn.zip" ]; then
+          if [ -f "/tmp/ncnn-${NCNN_VERSION}.zip" ]; then
             echo "Downloaded successfully"
-            ls -lh "${NCNN_DIR}/ncnn.zip"
+            ls -lh "/tmp/ncnn-${NCNN_VERSION}.zip"
             
             echo "Extracting..."
-            unzip -q "${NCNN_DIR}/ncnn.zip" -d "${NCNN_DIR}/temp-extract"
+            unzip -q "/tmp/ncnn-${NCNN_VERSION}.zip" -d "/tmp/ncnn-extract"
             
-            echo "Moving extracted files..."
-            # Move all files from the extracted directory to NCNN_DIR
-            shopt -s dotglob
-            mv "${NCNN_DIR}/temp-extract"/*/* ${NCNN_DIR}/ 2>/dev/null || true
-            shopt -u dotglob
+            # Find the extracted NCNN directory
+            NCNN_EXTRACTED=$(find /tmp/ncnn-extract -maxdepth 2 -type d -name "ncnn-*" | head -n 1)
+            echo "Found extracted directory: ${NCNN_EXTRACTED}"
             
-            rm -rf "${NCNN_DIR}/temp-extract"
-            rm -f "${NCNN_DIR}/ncnn.zip"
+            # Copy all contents from the extracted directory to NCNN_DIR
+            cp -r "${NCNN_EXTRACTED}/." "${NCNN_DIR}/"
+            
+            # Cleanup
+            rm -rf /tmp/ncnn-extract
+            rm -f "/tmp/ncnn-${NCNN_VERSION}.zip"
             
             echo "=== NCNN library structure ==="
-            find ${NCNN_DIR} -type f -name "*.a" | head -20
             ls -la ${NCNN_DIR}/
-            ls -la ${NCNN_DIR}/lib/ 2>/dev/null || echo "No lib dir"
+            ls -la ${NCNN_DIR}/arm64-v8a/ 2>/dev/null || echo "No arm64-v8a dir"
+            find ${NCNN_DIR} -type f -name "*.a" | head -20
           else
             echo "Failed to download NCNN"
             exit 1
