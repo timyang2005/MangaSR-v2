@@ -109,8 +109,8 @@ jobs:
           # Download ncnn headers from GitHub (prebuilt package does not include headers)
           echo "Downloading ncnn headers from GitHub..."
           mkdir -p "${NCNN_DIR}/include/ncnn"
-          curl -L "https://raw.githubusercontent.com/nihui/ncnn/master/include/ncnn/allocator.h" \
-            -o "${NCNN_DIR}/include/ncnn/allocator.h" 2>/dev/null
+          curl -sL "https://raw.githubusercontent.com/nihui/ncnn/main/include/ncnn/allocator.h" \
+            -o "${NCNN_DIR}/include/ncnn/allocator.h"
           
           # Download all headers
           HEADERS="benchmark.h blob.h c_api.h cpu.h datareader.h filemapper.h gpu.h \
@@ -119,7 +119,7 @@ jobs:
             simpleocv.h"
           for h in $HEADERS; do
             echo "  downloading include/ncnn/$h"
-            curl -sL "https://raw.githubusercontent.com/nihui/ncnn/master/include/ncnn/$h" \
+            curl -sL "https://raw.githubusercontent.com/nihui/ncnn/main/include/ncnn/$h" \
               -o "${NCNN_DIR}/include/ncnn/$h"
           done
           
