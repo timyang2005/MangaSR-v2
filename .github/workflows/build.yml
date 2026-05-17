@@ -78,7 +78,7 @@ jobs:
             -o "/tmp/ncnn-android-vulkan.zip"
           
           if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
-            rm -rf /tmp/ncnn-android-vulkan
+            rm -rf /tmp/ncnn-${NCNN_VERSION}-android-vulkan
             unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp
             ls -la /tmp/
             
