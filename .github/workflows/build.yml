@@ -79,18 +79,28 @@ jobs:
           
           if [ -f "/tmp/ncnn-${NCNN_VERSION}.zip" ]; then
             echo "Downloaded successfully"
-            unzip -q "/tmp/ncnn-${NCNN_VERSION}.zip" -d "/tmp/ncnn-extract"
+            mkdir -p /tmp/_ncnn_extract
+            unzip -q "/tmp/ncnn-${NCNN_VERSION}.zip" -d "/tmp/_ncnn_extract"
             
-            NCNN_EXTRACTED=$(find /tmp/ncnn-extract -maxdepth 2 -type d -name "ncnn-*" | head -n 1)
+            # Find the extracted ncnn directory (e.g., ncnn-20260112-android-vulkan)
+            NCNN_EXTRACTED=$(find /tmp/_ncnn_extract -maxdepth 2 -type d -name "ncnn-*-android-vulkan" | head -n 1)
             echo "Extracted to: ${NCNN_EXTRACTED}"
             
+            if [ -z "${NCNN_EXTRACTED}" ]; then
+              echo "ERROR: Could not find extracted ncnn directory"
+              ls -la /tmp/_ncnn_extract/
+              exit 1
+            fi
+            
+            # Copy contents, stripping the outer version directory
+            # e.g., ncnn-20260112-android-vulkan/arm64-v8a/lib/libncnn.a → ncnn/arm64-v8a/lib/libncnn.a
             cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/"
             
             echo "=== NCNN library structure ==="
             ls -la ${NCNN_DIR}/
-            find ${NCNN_DIR} -type f -name "*.a" | head -10
+            find ${NCNN_DIR} -type f -name "*.a"
             
-            rm -rf /tmp/ncnn-extract /tmp/ncnn-${NCNN_VERSION}.zip
+            rm -rf /tmp/_ncnn_extract /tmp/ncnn-${NCNN_VERSION}.zip
           else
             echo "Failed to download NCNN"
             exit 1
