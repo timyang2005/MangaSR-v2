@@ -176,7 +176,7 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                     }
                 }
 
-                HeadingItem(stringResource(MR.strings.pref_sr_denoise_level))
+                HeadingItem(stringResource(MR.strings.pref_sr_noise_level))
                 FlowRow(
                     modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -266,7 +266,7 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                     }
                 }
 
-                HeadingItem(stringResource(MR.strings.pref_sr_denoise_level))
+                HeadingItem(stringResource(MR.strings.pref_sr_noise_level))
                 FlowRow(
                     modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -295,8 +295,8 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                 ) {
                     Quality.entries.map { quality ->
                         FilterChip(
-                            selected = mangaSrPrefs.srQuality.get() == quality.key,
-                            onClick = { mangaSrPrefs.srQuality.set(quality.key) },
+                            selected = screenModel.preferences.srQuality.get() == quality.key,
+                            onClick = { screenModel.preferences.srQuality.set(quality.key) },
                             label = {
                                 Text(
                                     when (quality) {
@@ -357,7 +357,7 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
             }
 
             val srDenoiseLevel by screenModel.preferences.srDenoiseLevel.preferenceCollectAsState()
-            HeadingItem(stringResource(MR.strings.pref_sr_denoise_level))
+            HeadingItem(stringResource(MR.strings.pref_sr_noise_level))
             FlowRow(
                 modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
