@@ -3,6 +3,9 @@ project(mihon_superresolution)
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+
 add_library(realesrgan-ncnn-vulkan SHARED
     realesrgan_jni.cpp
     realesrgan_wrapper.cpp
@@ -31,4 +34,5 @@ target_link_libraries(realesrgan-ncnn-vulkan
     log
     jnigraphics
     vulkan
+    omp
 )
