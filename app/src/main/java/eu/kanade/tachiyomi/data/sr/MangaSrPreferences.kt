@@ -28,11 +28,6 @@ class MangaSrPreferences(
         defaultValue = SRModel.REALCUGAN_2X_CONSERVATIVE.key,
     )
 
-    val srScale: Preference<Int> = preferenceStore.getInt(
-        key = key("scale"),
-        defaultValue = 2,
-    )
-
     val srDenoiseLevel: Preference<String> = preferenceStore.getString(
         key = key("denoise_level"),
         defaultValue = DenoiseLevel.LIGHT.key,

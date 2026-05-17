@@ -198,8 +198,8 @@ AND (
 );
 
 insertReturningId:
-INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, notes, sr_enabled, sr_model, sr_scale, sr_noise_level)
-VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, :notes, :srEnabled, :srModel, :srScale, :srNoiseLevel)
+INSERT INTO mangas(source, url, artist, author, description, genre, title, status, thumbnail_url, favorite, last_update, next_update, initialized, viewer, chapter_flags, cover_last_modified, date_added, update_strategy, calculate_interval, last_modified_at, version, notes, sr_enabled, sr_model, sr_noise_level)
+VALUES (:source, :url, :artist, :author, :description, :genre, :title, :status, :thumbnailUrl, :favorite, :lastUpdate, :nextUpdate, :initialized, :viewerFlags, :chapterFlags, :coverLastModified, :dateAdded, :updateStrategy, :calculateInterval, 0, :version, :notes, :srEnabled, :srModel, :srNoiseLevel)
 RETURNING _id;
 
 update:
@@ -228,7 +228,6 @@ UPDATE mangas SET
     notes = coalesce(:notes, notes),
     sr_enabled = coalesce(:srEnabled, sr_enabled),
     sr_model = coalesce(:srModel, sr_model),
-    sr_scale = coalesce(:srScale, sr_scale),
     sr_noise_level = coalesce(:srNoiseLevel, sr_noise_level)
 WHERE _id = :mangaId;
 

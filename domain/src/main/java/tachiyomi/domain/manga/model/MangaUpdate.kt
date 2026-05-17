@@ -27,7 +27,6 @@ data class MangaUpdate(
     val notes: String? = null,
     val srEnabled: Boolean? = null,
     val srModel: String? = null,
-    val srScale: Int? = null,
     val srNoiseLevel: Int? = null,
 )
 
@@ -57,7 +56,6 @@ fun Manga.toMangaUpdate(): MangaUpdate {
         notes = notes,
         srEnabled = srEnabled,
         srModel = srModel,
-        srScale = srScale,
         srNoiseLevel = srNoiseLevel,
     )
 }

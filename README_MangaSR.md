@@ -37,7 +37,7 @@
 Mihon 主程序
     │
     ├─ 阅读器设置 (ReaderPreferences)
-    │   ├─ 全局超分设置 (srEnabled, srModel, srScale, srDenoiseLevel, srQuality)
+    │   ├─ 全局超分设置 (srEnabled, srModel, srDenoiseLevel, srQuality)
     │   └─ 单本设置 (MangaSrPreferences)
     │
     ├─ SuperResolutionSync (偏好→引擎同步)

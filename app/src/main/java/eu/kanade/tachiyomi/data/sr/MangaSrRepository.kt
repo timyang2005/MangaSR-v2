@@ -26,15 +26,6 @@ class MangaSrRepository(
         )
     }
 
-    suspend fun setSrScale(mangaId: Long, scale: Int) {
-        mangaRepository.update(
-            MangaUpdate(
-                id = mangaId,
-                srScale = scale,
-            ),
-        )
-    }
-
     suspend fun setSrNoiseLevel(mangaId: Long, noiseLevel: Int) {
         mangaRepository.update(
             MangaUpdate(

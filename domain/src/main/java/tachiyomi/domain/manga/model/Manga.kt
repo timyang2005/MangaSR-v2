@@ -35,7 +35,6 @@ data class Manga(
     val notes: String,
     val srEnabled: Boolean = false,
     val srModel: String = "anime4k",
-    val srScale: Int = 2,
     val srNoiseLevel: Int = 0,
 ) : Serializable {
 

@@ -929,7 +929,6 @@
     <string name="pref_sr_mode_global">使用全局超分辨率设置</string>
     <string name="pref_sr_mode_manga">使用漫画专属超分辨率设置</string>
     <string name="pref_sr_model">超分模型</string>
-    <string name="pref_sr_scale">放大倍率</string>
     <string name="pref_sr_noise_level">降噪级别</string>
     <string name="sr_model_realcugan_2x_conservative">Real-CUGAN 2x（快速）</string>
     <string name="sr_model_realcugan_4x_conservative">Real-CUGAN 4x（快速）</string>
@@ -938,7 +937,6 @@
     <string name="sr_model_realesrgan_general_fast">Real-ESRGAN 通用快速（x4）</string>
     <string name="sr_no_vulkan">Vulkan 不可用，使用 CPU 模式</string>
     <string name="sr_model_heading">超分辨率模型</string>
-    <string name="sr_scale_heading">超分辨率缩放</string>
     <string name="sr_denoise_level_off">关闭</string>
     <string name="sr_denoise_level_light">轻度</string>
     <string name="sr_denoise_level_strong">强度</string>

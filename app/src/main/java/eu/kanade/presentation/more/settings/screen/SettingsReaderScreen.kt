@@ -439,7 +439,6 @@ object SettingsReaderScreen : SearchableSettings {
         val srEnabledPref = readerPreferences.srEnabled
         val srEnabled by srEnabledPref.collectAsState()
         val srModelPref = readerPreferences.srModel
-        val srScalePref = readerPreferences.srScale
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val srLogUtil = remember { SRLogUtil(context) }
@@ -457,16 +456,6 @@ object SettingsReaderScreen : SearchableSettings {
                     entries = SRModel.entries.associate { it.key to stringResource(it.displayNameRes) }
                         .toImmutableMap(),
                     title = stringResource(MR.strings.pref_sr_model),
-                    enabled = srEnabled,
-                ),
-                Preference.PreferenceItem.ListPreference(
-                    preference = srScalePref,
-                    entries = persistentMapOf(
-                        2 to "2x",
-                        3 to "3x",
-                        4 to "4x",
-                    ),
-                    title = stringResource(MR.strings.pref_sr_scale),
                     enabled = srEnabled,
                 ),
                 Preference.PreferenceItem.TextPreference(

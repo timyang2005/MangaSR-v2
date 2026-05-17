@@ -881,7 +881,6 @@
     <string name="pref_sr_mode_global">グローバル超解像設定を使用中</string>
     <string name="pref_sr_mode_manga">作品固有の超解像設定を使用中</string>
     <string name="pref_sr_model">SRモデル</string>
-    <string name="pref_sr_scale">拡大倍率</string>
     <string name="pref_sr_noise_level">ノイズ除去レベル</string>
     <string name="sr_model_realcugan_2x_conservative">Real-CUGAN 2x（高速）</string>
     <string name="sr_model_realcugan_4x_conservative">Real-CUGAN 4x（高速）</string>
@@ -890,7 +889,6 @@
     <string name="sr_model_realesrgan_general_fast">Real-ESRGAN 汎用高速（x4）</string>
     <string name="sr_no_vulkan">Vulkan非対応、CPUモードを使用</string>
     <string name="sr_model_heading">超解像モデル</string>
-    <string name="sr_scale_heading">超解像スケール</string>
     <string name="sr_denoise_level_off">オフ</string>
     <string name="sr_denoise_level_light">軽度</string>
     <string name="sr_denoise_level_strong">強度</string>

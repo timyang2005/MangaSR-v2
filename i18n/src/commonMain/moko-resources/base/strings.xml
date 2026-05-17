@@ -398,7 +398,6 @@
     <string name="pref_sr_mode_global">Using global super resolution settings</string>
     <string name="pref_sr_mode_manga">Using manga-specific super resolution settings</string>
     <string name="pref_sr_model">SR Model</string>
-    <string name="pref_sr_scale">Upscale Factor</string>
     <string name="pref_sr_noise_level">Denoise Level</string>
     <string name="sr_model_realcugan_2x_conservative">Real-CUGAN 2x (Fast)</string>
     <string name="sr_model_realcugan_4x_conservative">Real-CUGAN 4x (Fast)</string>
@@ -407,7 +406,6 @@
     <string name="sr_model_realesrgan_general_fast">Real-ESRGAN General Fast (x4)</string>
     <string name="sr_no_vulkan">Vulkan not available, using CPU mode</string>
     <string name="sr_model_heading">Super Resolution Model</string>
-    <string name="sr_scale_heading">Super Resolution Scale</string>
     <string name="sr_denoise_level_off">Off</string>
     <string name="sr_denoise_level_light">Light</string>
     <string name="sr_denoise_level_strong">Strong</string>

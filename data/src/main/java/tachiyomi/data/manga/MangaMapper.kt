@@ -35,7 +35,6 @@ object MangaMapper {
         notes: String,
         srEnabled: Boolean,
         srModel: String,
-        srScale: Long,
         srNoiseLevel: Long,
     ): Manga = Manga(
         id = id,
@@ -64,7 +63,6 @@ object MangaMapper {
         notes = notes,
         srEnabled = srEnabled,
         srModel = srModel,
-        srScale = srScale.toInt(),
         srNoiseLevel = srNoiseLevel.toInt(),
     )
 
@@ -96,7 +94,6 @@ object MangaMapper {
         notes: String,
         srEnabled: Boolean,
         srModel: String,
-        srScale: Long,
         srNoiseLevel: Long,
         totalCount: Long,
         readCount: Double,
@@ -134,7 +131,6 @@ object MangaMapper {
             notes,
             srEnabled,
             srModel,
-            srScale,
             srNoiseLevel,
         ),
         categories = categories.split(",").map { it.toLong() },
@@ -174,7 +170,6 @@ object MangaMapper {
         notes: String,
         srEnabled: Boolean,
         srModel: String,
-        srScale: Long,
         srNoiseLevel: Long,
         totalCount: Long,
     ): MangaWithChapterCount = MangaWithChapterCount(
@@ -206,7 +201,6 @@ object MangaMapper {
             notes,
             srEnabled,
             srModel,
-            srScale,
             srNoiseLevel,
         ),
         chapterCount = totalCount,

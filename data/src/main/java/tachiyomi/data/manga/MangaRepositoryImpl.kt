@@ -193,7 +193,6 @@ class MangaRepositoryImpl(
                     notes = value.notes,
                     srEnabled = value.srEnabled,
                     srModel = value.srModel,
-                    srScale = value.srScale?.toLong(),
                     srNoiseLevel = value.srNoiseLevel?.toLong(),
                 )
             }

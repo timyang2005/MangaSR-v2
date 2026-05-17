@@ -28,10 +28,9 @@ class SuperResolutionSync(
             combine(
                 preferences.srEnabled.changes(),
                 preferences.srModel.changes(),
-                preferences.srScale.changes(),
                 preferences.srDenoiseLevel.changes(),
-            ) { enabled, modelKey, scale, denoiseKey ->
-                SRConfig(enabled, modelKey, scale, denoiseKey)
+            ) { enabled, modelKey, denoiseKey ->
+                SRConfig(enabled, modelKey, denoiseKey)
             }
                 .distinctUntilChanged()
                 .collect { config ->
@@ -45,13 +44,13 @@ class SuperResolutionSync(
                             val model = SRModel.fromKey(config.modelKey)
                             val denoiseLevel = DenoiseLevel.fromKey(config.denoiseKey)
                             if (NativeLibraryStatus.isModelAvailable(model)) {
-                                manager.switchModel(model, config.scale, denoiseLevel)
+                                manager.switchModel(model, model.scale, denoiseLevel)
                             } else {
                                 val fallback = NativeLibraryStatus.getFirstAvailableModel()
                                 logcat(LogPriority.WARN) {
                                     "SR model ${model.key} native library not available, falling back to ${fallback.key}"
                                 }
-                                manager.switchModel(fallback, config.scale, denoiseLevel)
+                                manager.switchModel(fallback, fallback.scale, denoiseLevel)
                             }
                         } else {
                             manager.release()
@@ -66,7 +65,6 @@ class SuperResolutionSync(
     private data class SRConfig(
         val enabled: Boolean,
         val modelKey: String,
-        val scale: Int,
         val denoiseKey: String,
     )
 }

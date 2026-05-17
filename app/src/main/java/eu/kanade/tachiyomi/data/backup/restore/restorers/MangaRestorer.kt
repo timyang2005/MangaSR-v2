@@ -136,7 +136,6 @@ class MangaRestorer(
             notes = manga.notes,
             srEnabled = manga.srEnabled,
             srModel = manga.srModel,
-            srScale = manga.srScale.toLong(),
             srNoiseLevel = manga.srNoiseLevel.toLong(),
         )
         return manga
@@ -269,7 +268,6 @@ class MangaRestorer(
             notes = manga.notes,
             srEnabled = manga.srEnabled,
             srModel = manga.srModel,
-            srScale = manga.srScale.toLong(),
             srNoiseLevel = manga.srNoiseLevel.toLong(),
         )
             .awaitAsOne()

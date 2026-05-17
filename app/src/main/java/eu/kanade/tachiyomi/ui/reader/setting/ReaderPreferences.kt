@@ -147,8 +147,6 @@ class ReaderPreferences(
 
     val srModel: Preference<String> = preferenceStore.getString("pref_sr_model", SRModel.REALCUGAN_2X_CONSERVATIVE.key)
 
-    val srScale: Preference<Int> = preferenceStore.getInt("pref_sr_scale", 2)
-
     val srDenoiseLevel: Preference<String> = preferenceStore.getString("pref_sr_denoise_level", DenoiseLevel.LIGHT.key)
 
     val srQuality: Preference<String> = preferenceStore.getString("pref_sr_quality", Quality.BALANCED.key)

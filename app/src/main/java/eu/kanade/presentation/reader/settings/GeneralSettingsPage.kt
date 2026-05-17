@@ -141,10 +141,9 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
 
             val srEnabled by screenModel.preferences.srEnabled.preferenceCollectAsState()
             val srModel by screenModel.preferences.srModel.preferenceCollectAsState()
-            val srScale by screenModel.preferences.srScale.preferenceCollectAsState()
             val srDenoiseLevel by screenModel.preferences.srDenoiseLevel.preferenceCollectAsState()
 
-            LaunchedEffect(srEnabled, srModel, srScale, srDenoiseLevel) {
+            LaunchedEffect(srEnabled, srModel, srDenoiseLevel) {
                 screenModel.applyEffectiveSrSettings()
             }
             if (srEnabled) {
@@ -158,20 +157,6 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                             selected = srModel == model.key,
                             onClick = { screenModel.preferences.srModel.set(model.key) },
                             label = { Text(stringResource(model.displayNameRes)) },
-                        )
-                    }
-                }
-
-                HeadingItem(stringResource(MR.strings.sr_scale_heading))
-                FlowRow(
-                    modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf(2, 4).map { scale ->
-                        FilterChip(
-                            selected = srScale == scale,
-                            onClick = { screenModel.preferences.srScale.set(scale) },
-                            label = { Text("${scale}x") },
                         )
                     }
                 }
@@ -230,10 +215,9 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
 
             val srEnabled by mangaSrPrefs.srEnabled.preferenceCollectAsState()
             val srModel by mangaSrPrefs.srModel.preferenceCollectAsState()
-            val srScale by mangaSrPrefs.srScale.preferenceCollectAsState()
             val srDenoiseLevel by mangaSrPrefs.srDenoiseLevel.preferenceCollectAsState()
 
-            LaunchedEffect(srEnabled, srModel, srScale, srDenoiseLevel) {
+            LaunchedEffect(srEnabled, srModel, srDenoiseLevel) {
                 screenModel.applyEffectiveSrSettings()
             }
 
@@ -248,20 +232,6 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                             selected = srModel == model.key,
                             onClick = { mangaSrPrefs.srModel.set(model.key) },
                             label = { Text(stringResource(model.displayNameRes)) },
-                        )
-                    }
-                }
-
-                HeadingItem(stringResource(MR.strings.sr_scale_heading))
-                FlowRow(
-                    modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf(2, 4).map { scale ->
-                        FilterChip(
-                            selected = srScale == scale,
-                            onClick = { mangaSrPrefs.srScale.set(scale) },
-                            label = { Text("${scale}x") },
                         )
                     }
                 }
@@ -337,21 +307,6 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
                         selected = srModel == model.key,
                         onClick = { screenModel.preferences.srModel.set(model.key) },
                         label = { Text(stringResource(model.displayNameRes)) },
-                    )
-                }
-            }
-
-            val srScale by screenModel.preferences.srScale.preferenceCollectAsState()
-            HeadingItem(stringResource(MR.strings.sr_scale_heading))
-            FlowRow(
-                modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(2, 4).map { scale ->
-                    FilterChip(
-                        selected = srScale == scale,
-                        onClick = { screenModel.preferences.srScale.set(scale) },
-                        label = { Text("${scale}x") },
                     )
                 }
             }

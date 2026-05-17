@@ -1001,20 +1001,17 @@ class ReaderActivity : BaseActivity() {
 
         val effectiveEnabled: Boolean
         val effectiveModelKey: String
-        val effectiveScale: Int
 
         if (useGlobal) {
             effectiveEnabled = readerPreferences.srEnabled.get()
             effectiveModelKey = readerPreferences.srModel.get()
-            effectiveScale = readerPreferences.srScale.get()
         } else {
             effectiveEnabled = mangaSrPrefs.srEnabled.get()
             effectiveModelKey = mangaSrPrefs.srModel.get()
-            effectiveScale = mangaSrPrefs.srScale.get()
         }
 
         logcat(LogPriority.INFO) {
-            "SR: Reader applying settings: enabled=$effectiveEnabled, model=$effectiveModelKey, scale=$effectiveScale, useGlobal=$useGlobal"
+            "SR: Reader applying settings: enabled=$effectiveEnabled, model=$effectiveModelKey, useGlobal=$useGlobal"
         }
 
         srManager.setReaderOverride(true)
@@ -1030,12 +1027,11 @@ class ReaderActivity : BaseActivity() {
                     }
                     fallback
                 }
-                srManager.switchModel(actualModel, effectiveScale)
+                srManager.switchModel(actualModel, actualModel.scale)
             } else {
                 srManager.release()
             }
         }
-    }
 
     private fun releaseSrOverride() {
         srManager.setReaderOverride(false)
@@ -1046,7 +1042,7 @@ class ReaderActivity : BaseActivity() {
                 val model = SRModel.fromKey(readerPreferences.srModel.get())
                 val actualModel = if (NativeLibraryStatus.isModelAvailable(model)) model
                 else NativeLibraryStatus.getFirstAvailableModel()
-                srManager.switchModel(actualModel, readerPreferences.srScale.get())
+                srManager.switchModel(actualModel, actualModel.scale)
             } else {
                 srManager.release()
             }

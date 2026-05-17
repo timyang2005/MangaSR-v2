@@ -55,20 +55,17 @@ class ReaderSettingsScreenModel(
 
         val effectiveEnabled: Boolean
         val effectiveModelKey: String
-        val effectiveScale: Int
 
         if (useGlobal) {
             effectiveEnabled = preferences.srEnabled.get()
             effectiveModelKey = preferences.srModel.get()
-            effectiveScale = preferences.srScale.get()
         } else {
             effectiveEnabled = mangaSrPrefs.srEnabled.get()
             effectiveModelKey = mangaSrPrefs.srModel.get()
-            effectiveScale = mangaSrPrefs.srScale.get()
         }
 
         logcat(LogPriority.INFO) {
-            "SR: Applying effective settings for manga ${manga.id}: enabled=$effectiveEnabled, model=$effectiveModelKey, scale=$effectiveScale, useGlobal=$useGlobal"
+            "SR: Applying effective settings for manga ${manga.id}: enabled=$effectiveEnabled, model=$effectiveModelKey, useGlobal=$useGlobal"
         }
 
         manager.setReaderOverride(true)
@@ -84,7 +81,7 @@ class ReaderSettingsScreenModel(
                     }
                     fallback
                 }
-                manager.switchModel(actualModel, effectiveScale)
+                manager.switchModel(actualModel, actualModel.scale)
             } else {
                 manager.release()
             }
@@ -101,18 +98,17 @@ class ReaderSettingsScreenModel(
                 val model = SRModel.fromKey(preferences.srModel.get())
                 val actualModel = if (NativeLibraryStatus.isModelAvailable(model)) model
                 else NativeLibraryStatus.getFirstAvailableModel()
-                manager.switchModel(actualModel, preferences.srScale.get())
+                manager.switchModel(actualModel, actualModel.scale)
             } else {
                 manager.release()
             }
         }
     }
 
-    fun saveSrSettings(mangaId: Long, srEnabled: Boolean?, srModel: String?, srScale: Int?, srNoiseLevel: Int?) {
+    fun saveSrSettings(mangaId: Long, srEnabled: Boolean?, srModel: String?, srNoiseLevel: Int?) {
         ioCoroutineScope.launch {
             srEnabled?.let { mangaSrRepository.setSrEnabled(mangaId, it) }
             srModel?.let { mangaSrRepository.setSrModel(mangaId, it) }
-            srScale?.let { mangaSrRepository.setSrScale(mangaId, it) }
             srNoiseLevel?.let { mangaSrRepository.setSrNoiseLevel(mangaId, it) }
         }
     }
