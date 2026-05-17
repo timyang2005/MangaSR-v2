@@ -62,11 +62,13 @@ jobs:
           NCNN_VERSION="20260112"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
           
-          # Completely remove existing NCNN directory and recreate
+          echo "Removing old NCNN files and clearing git tracking..."
           rm -rf ${NCNN_DIR}
-          mkdir -p ${NCNN_DIR}
+          git rm -rf --cached ${NCNN_DIR} 2>/dev/null || true
           
           echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android library..."
+          
+          mkdir -p ${NCNN_DIR}
           
           # Download to temp location first
           curl -L -H "Authorization: token $GITHUB_TOKEN" \
@@ -85,41 +87,18 @@ jobs:
             NCNN_EXTRACTED=$(find /tmp/ncnn-extract -maxdepth 2 -type d -name "ncnn-*" | head -n 1)
             echo "Found extracted directory: ${NCNN_EXTRACTED}"
             
-            # Move the extracted directory contents directly to NCNN_DIR (not the directory itself)
-            for item in "${NCNN_EXTRACTED}"/*; do
-              if [ -d "$item" ]; then
-                mv "$item" "${NCNN_DIR}/"
-              elif [ -f "$item" ]; then
-                mv "$item" "${NCNN_DIR}/"
-              fi
-            done
-            
-            # Copy include files
-            if [ -d "${NCNN_EXTRACTED}/include" ]; then
-              echo "Copying include files..."
-              mkdir -p "${NCNN_DIR}/include"
-              cp -r "${NCNN_EXTRACTED}/include/"* "${NCNN_DIR}/include/"
-              ls -la "${NCNN_DIR}/include/"
-            else
-              echo "Include directory not found"
-              find /tmp/ncnn-extract -name "include" -type d
-            fi
-            
-            # Create proper include structure for CMake
-            mkdir -p "${NCNN_DIR}/include/ncnn"
-            if [ -d "${NCNN_DIR}/include/ncnn" ]; then
-              echo "NCNN include directory already has correct structure"
-            fi
-            
-            # Cleanup
-            rm -rf /tmp/ncnn-extract
-            rm -f "/tmp/ncnn-${NCNN_VERSION}.zip"
+            # Copy all contents from extracted directory
+            cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/" 2>/dev/null || true
             
             echo "=== NCNN library structure ==="
             ls -la ${NCNN_DIR}/
             ls -la ${NCNN_DIR}/arm64-v8a/ 2>/dev/null || echo "No arm64-v8a dir"
             ls -la ${NCNN_DIR}/arm64-v8a/lib/ 2>/dev/null || echo "No arm64-v8a/lib dir"
             find ${NCNN_DIR} -type f -name "*.a" | head -20
+            
+            # Cleanup
+            rm -rf /tmp/ncnn-extract
+            rm -f "/tmp/ncnn-${NCNN_VERSION}.zip"
           else
             echo "Failed to download NCNN"
             exit 1
