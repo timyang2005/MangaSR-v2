@@ -83,47 +83,54 @@ jobs:
           
           if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
             echo "Extracting NCNN library..."
-            rm -rf /tmp/ncnn-${NCNN_VERSION}-android-vulkan
-            unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp
+            rm -rf /tmp/ncnn-extracted
+            mkdir -p /tmp/ncnn-extracted
+            unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp/ncnn-extracted
             
-            echo "=== Checking /tmp contents ==="
-            ls -la /tmp/ | grep ncnn
+            echo "=== Checking extracted contents ==="
+            ls -la /tmp/ncnn-extracted/
             
-            echo "=== Checking extracted directory ==="
-            NCNN_EXTRACT_DIR="/tmp/ncnn-${NCNN_VERSION}-android-vulkan"
-            ls -la ${NCNN_EXTRACT_DIR}/
+            # Find the actual NCNN directory (it might be nested)
+            NCNN_EXTRACT_DIR=$(find /tmp/ncnn-extracted -maxdepth 2 -type d -name "ncnn*" | head -n 1)
+            echo "Found NCNN directory: ${NCNN_EXTRACT_DIR}"
             
-            echo "=== Checking for lib directory ==="
+            # Check if the directory has lib and include subdirectories directly or nested
             if [ -d "${NCNN_EXTRACT_DIR}/lib" ]; then
-              echo "Found lib directory:"
-              ls -la ${NCNN_EXTRACT_DIR}/lib/
-              ls -la ${NCNN_EXTRACT_DIR}/lib/arm64-v8a/ || echo "arm64-v8a not found"
+              echo "Found lib directory directly under NCNN dir"
+              NCNN_LIB_DIR="${NCNN_EXTRACT_DIR}/lib"
+            elif [ -d "${NCNN_EXTRACT_DIR}/src/main/cpp/ncnn-*/lib" ]; then
+              echo "Found lib directory nested"
+              NCNN_LIB_DIR=$(find ${NCNN_EXTRACT_DIR} -maxdepth 3 -type d -name "lib" | head -n 1)
             else
-              echo "lib directory not found, checking subdirectories..."
+              echo "Looking for lib directory..."
               ls -la ${NCNN_EXTRACT_DIR}/
+              find /tmp/ncnn-extracted -name "lib" -type d
             fi
             
+            echo "Using NCNN_LIB_DIR: ${NCNN_LIB_DIR}"
+            
+            # Copy library files
             for ABI in arm64-v8a armeabi-v7a x86_64; do
-              if [ -d "${NCNN_EXTRACT_DIR}/lib/${ABI}" ]; then
-                cp ${NCNN_EXTRACT_DIR}/lib/${ABI}/*.a ${NCNN_DIR}/lib/${ABI}/
+              if [ -d "${NCNN_LIB_DIR}/${ABI}" ]; then
+                echo "Copying ${ABI} files..."
+                cp ${NCNN_LIB_DIR}/${ABI}/*.a ${NCNN_DIR}/lib/${ABI}/
                 ls -la ${NCNN_DIR}/lib/${ABI}/
               else
-                echo "ABI directory not found: ${NCNN_EXTRACT_DIR}/lib/${ABI}"
-                echo "Looking for in:"
-                ls -la ${NCNN_EXTRACT_DIR}/ 2>/dev/null || true
-                ls -la ${NCNN_EXTRACT_DIR}/lib/ 2>/dev/null || true
+                echo "ABI directory not found: ${NCNN_LIB_DIR}/${ABI}"
               fi
             done
             
+            # Copy include files
             if [ -d "${NCNN_EXTRACT_DIR}/include" ]; then
+              echo "Copying include files..."
               cp -r ${NCNN_EXTRACT_DIR}/include/* ${NCNN_DIR}/include/
               ls -la ${NCNN_DIR}/include/
             else
-              echo "Include directory not found: ${NCNN_EXTRACT_DIR}/include"
+              echo "Include directory not found"
+              find /tmp/ncnn-extracted -name "include" -type d
             fi
           else
             echo "Failed to download NCNN"
-            ls -la /tmp/
           fi
 
       - name: Cache Gradle dependencies
