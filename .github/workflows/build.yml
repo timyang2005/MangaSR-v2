@@ -62,8 +62,12 @@ jobs:
           NCNN_VERSION="20260112"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
           
-          # Remove any existing NCNN directory first to avoid corrupted files
+          # Remove any existing NCNN directory in the project
           rm -rf ${NCNN_DIR}
+          
+          # Clean up any cached NCNN directories in /tmp to ensure fresh download
+          rm -rf /tmp/ncnn-${NCNN_VERSION}-android-vulkan
+          rm -f /tmp/ncnn-android-vulkan.zip
           
           mkdir -p ${NCNN_DIR}/lib/arm64-v8a
           mkdir -p ${NCNN_DIR}/lib/armeabi-v7a
@@ -78,9 +82,12 @@ jobs:
             -o "/tmp/ncnn-android-vulkan.zip"
           
           if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
-            rm -rf /tmp/ncnn-${NCNN_VERSION}-android-vulkan
+            echo "Extracting NCNN library..."
             unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp
-            ls -la /tmp/
+            ls -la /tmp/ | grep ncnn
+            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/ || echo "Directory not found"
+            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/lib/ || echo "lib directory not found"
+            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/lib/arm64-v8a/ || echo "arm64-v8a directory not found"
             
             # The extracted directory should be /tmp/ncnn-20260112-android-vulkan
             NCNN_EXTRACT_DIR="/tmp/ncnn-${NCNN_VERSION}-android-vulkan"
