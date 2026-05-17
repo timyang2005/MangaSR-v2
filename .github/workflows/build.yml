@@ -52,9 +52,37 @@ jobs:
 
       - name: Install Android NDK and SDK components
         run: |
+          set -e
           export ANDROID_SDK_ROOT=/opt/android-sdk
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-37" "build-tools;37.0.0" 2>&1 || true
-          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || true
+          export ANDROID_LICENSE_ROOT=$ANDROID_SDK_ROOT/licenses
+          mkdir -p $ANDROID_LICENSE_ROOT
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_LICENSE_ROOT/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> $ANDROID_LICENSE_ROOT/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_LICENSE_ROOT/android-sdk-license
+          echo "e6b7c2ab7fa2298c15165e9583d0acf0b04a2232" >> $ANDROID_LICENSE_ROOT/android-sdk-license
+          
+          echo "Installing Android NDK..."
+          if [ -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973" ]; then
+            echo "NDK already installed"
+          else
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" 2>&1
+          fi
+          
+          echo "Installing Android platform..."
+          if [ -d "$ANDROID_SDK_ROOT/platforms/android-37" ]; then
+            echo "Platform already installed"
+          else
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" 2>&1
+          fi
+          
+          echo "Installing build tools..."
+          if [ -d "$ANDROID_SDK_ROOT/build-tools/37.0.0" ]; then
+            echo "Build tools already installed"
+          else
+            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "build-tools;37.0.0" 2>&1
+          fi
+          
+          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || echo "No NDK found"
 
       - name: Download NCNN Vulkan library
         run: |
