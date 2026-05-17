@@ -288,7 +288,7 @@ class ReaderActivity : BaseActivity() {
                     statusInfo = SRStatusInfo(
                         status = if (state.srCompleted) SRStatus.DONE else SRStatus.IDLE,
                         pageIndex = state.currentPage,
-                        chapterId = state.currentChapter?.id ?: -1L,
+                        chapterId = state.currentChapter?.chapter?.id ?: -1L,
                         model = SRModel.REALCUGAN_2X_CONSERVATIVE,
                     ),
                     position = SRIndicatorPosition.fromKey(srIndicatorPosition),
