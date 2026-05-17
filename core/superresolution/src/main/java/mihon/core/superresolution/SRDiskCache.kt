@@ -1,18 +1,15 @@
 package mihon.core.superresolution
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.FileOutputStream
 
 class SRDiskCache(
-    private val cacheDir: File = File(Injekt.get<Context>().cacheDir, "sr_disk_cache"),
+    private val cacheDir: File,
 ) {
     private val maxCacheSizeBytes = 100L * 1024 * 1024
 

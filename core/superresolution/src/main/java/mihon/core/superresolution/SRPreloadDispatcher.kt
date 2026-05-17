@@ -1,5 +1,6 @@
 package mihon.core.superresolution
 
+import android.content.Context
 import android.graphics.Bitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -7,13 +8,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
+import java.io.File
 
 class SRPreloadDispatcher(
     private val manager: SuperResolutionManager,
+    private val context: Context,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val preloadWindow = 5
-    private val diskCache = SRDiskCache()
+    private val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
     private val preloadingPages = mutableSetOf<String>()
 
     fun onPageChanged(chapterId: Long, currentPageIndex: Int, totalPages: Int) {

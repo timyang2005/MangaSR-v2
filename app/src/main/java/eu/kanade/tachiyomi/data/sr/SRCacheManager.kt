@@ -39,7 +39,9 @@ object SRCacheManager {
 
     fun clearDiskCache() {
         try {
-            val diskCache = SRDiskCache()
+            val app = Injekt.get<Application>()
+            val cacheDir = java.io.File(app.cacheDir, "sr_disk_cache")
+            val diskCache = SRDiskCache(cacheDir)
             diskCache.clear()
         } catch (e: Exception) {
             logcat(LogPriority.ERROR) { "SR: Failed to clear SR disk cache: ${e.message}" }

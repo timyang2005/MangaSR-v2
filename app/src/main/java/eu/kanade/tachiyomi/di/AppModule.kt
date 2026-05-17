@@ -126,7 +126,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { LocalCoverManager(app, get()) }
         addSingletonFactory { StorageManager(app, get()) }
         addSingletonFactory { SuperResolutionManager(app) }
-        addSingletonFactory { SRPreloadDispatcher(get()) }
+        addSingletonFactory { SRPreloadDispatcher(get(), app) }
 
         // Asynchronously init expensive components for a faster cold start
         ContextCompat.getMainExecutor(app).execute {
