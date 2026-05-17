@@ -47,21 +47,6 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Configure Android SDK
-        run: |
-          export ANDROID_HOME=/opt/android-sdk
-          export ANDROID_SDK_ROOT=/opt/android-sdk
-          
-          mkdir -p $ANDROID_HOME/licenses
-          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\n84831b9409646a918e30573bab4c9c91346d8abd\nd56f5187479451eabf01fb78af6dfcb131a6481e\ne6b7c2ab7fa2298c15165e9583d0acf0b04a2232\n" > $ANDROID_HOME/licenses/android-sdk-license
-          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-          
-          echo "=== Android SDK setup complete ==="
-          ls -la $ANDROID_HOME/ 2>/dev/null || echo "SDK dir not found"
-
       - name: Download NCNN Vulkan library
         run: |
           set -e
