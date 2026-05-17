@@ -21,6 +21,12 @@ set(NCNN_LIB_DIR ${NCNN_BASE_DIR}/${ANDROID_ABI}/lib)
 
 target_link_libraries(realesrgan-ncnn-vulkan
     ${NCNN_LIB_DIR}/libncnn.a
+    ${NCNN_LIB_DIR}/libglslang.a
+    ${NCNN_LIB_DIR}/libOSDependent.a
+    ${NCNN_LIB_DIR}/libSPIRV.a
+    ${NCNN_LIB_DIR}/libGenericCodeGen.a
+    ${NCNN_LIB_DIR}/libMachineIndependent.a
+    ${NCNN_LIB_DIR}/libglslang-default-resource-limits.a
     android
     log
     jnigraphics
