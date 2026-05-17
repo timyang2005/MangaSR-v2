@@ -105,6 +105,26 @@ jobs:
             echo "Failed to download NCNN"
             exit 1
           fi
+          
+          # Download ncnn headers from GitHub (prebuilt package does not include headers)
+          echo "Downloading ncnn headers from GitHub..."
+          mkdir -p "${NCNN_DIR}/include"
+          curl -L "https://raw.githubusercontent.com/nihui/ncnn/master/include/ncnn/allocator.h" \
+            -o "${NCNN_DIR}/include/ncnn/allocator.h" 2>/dev/null
+          
+          # Download all headers
+          HEADERS="benchmark.h blob.h c_api.h cpu.h datareader.h filemapper.h gpu.h \
+            layer.h layer_shader_registry.h layer_type_enum.h layer_type.h mat.h \
+            modelbin.h net.h object.h op.h paramdict.h pipeline.h platform.h \
+            simpleocv.h"
+          for h in $HEADERS; do
+            echo "  downloading include/ncnn/$h"
+            curl -sL "https://raw.githubusercontent.com/nihui/ncnn/master/include/ncnn/$h" \
+              -o "${NCNN_DIR}/include/ncnn/$h"
+          done
+          
+          echo "=== NCNN headers ==="
+          ls -la ${NCNN_DIR}/include/ncnn/
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
