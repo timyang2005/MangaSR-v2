@@ -74,20 +74,18 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
     }
 
     int pixel_count = in_w * in_h;
-    float* rgb_float = new float[pixel_count * 3];
+
+    ncnn::Mat inimage(in_w, in_h, 3);
+    float* in_data = static_cast<float*>(inimage.data);
 
     const unsigned char* rgba_data = static_cast<const unsigned char*>(pixels);
     for (int i = 0; i < pixel_count; i++) {
-        rgb_float[i * 3 + 0] = rgba_data[i * 4 + 0] / 255.0f;
-        rgb_float[i * 3 + 1] = rgba_data[i * 4 + 1] / 255.0f;
-        rgb_float[i * 3 + 2] = rgba_data[i * 4 + 2] / 255.0f;
+        in_data[i * 3 + 0] = rgba_data[i * 4 + 0] / 255.0f;
+        in_data[i * 3 + 1] = rgba_data[i * 4 + 1] / 255.0f;
+        in_data[i * 3 + 2] = rgba_data[i * 4 + 2] / 255.0f;
     }
 
     AndroidBitmap_unlockPixels(env, input_bitmap);
-
-    ncnn::Mat inimage(in_w, in_h, 3);
-    memcpy(inimage.data, rgb_float, pixel_count * 3 * sizeof(float));
-    delete[] rgb_float;
 
     ncnn::Mat outimage;
     bool success = wrapper->process(inimage, outimage);
@@ -123,12 +121,15 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
 
     int out_pixel_count = out_w * out_h;
     unsigned char* out_rgba = static_cast<unsigned char*>(out_pixels);
-    const float* out_data = (const float*)outimage.data;
+    const float* out_data = static_cast<const float*>(outimage.data);
 
     for (int i = 0; i < out_pixel_count; i++) {
-        out_rgba[i * 4 + 0] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, out_data[i * 3 + 0] * 255.0f)));
-        out_rgba[i * 4 + 1] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, out_data[i * 3 + 1] * 255.0f)));
-        out_rgba[i * 4 + 2] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, out_data[i * 3 + 2] * 255.0f)));
+        float r = out_data[i * 3 + 0] * 255.0f;
+        float g = out_data[i * 3 + 1] * 255.0f;
+        float b = out_data[i * 3 + 2] * 255.0f;
+        out_rgba[i * 4 + 0] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, r)));
+        out_rgba[i * 4 + 1] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, g)));
+        out_rgba[i * 4 + 2] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, b)));
         out_rgba[i * 4 + 3] = 255;
     }
 
