@@ -18,8 +18,8 @@ on:
 
 env:
   JAVA_VERSION: '17'
-  ANDROID_HOME: /opt/android-sdk
-  ANDROID_SDK_ROOT: /opt/android-sdk
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,6 +46,19 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Setup Android SDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-35" --sdk_root=$ANDROID_HOME 2>/dev/null || true
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses --sdk_root=$ANDROID_HOME 2>/dev/null || true
+          echo "Android SDK setup complete"
+          ls -la $ANDROID_HOME/platforms/ 2>/dev/null || echo "No platforms directory - trying alternate SDK location"
+          # Fallback: use android-actions if SDK not found
+          if [ ! -d "$ANDROID_HOME/platforms" ]; then
+            echo "SDK not found at standard path, checking alternatives..."
+            ls -la /opt/android-sdk/ 2>/dev/null && echo "Found at /opt/android-sdk" || true
+            ls -la /usr/local/lib/android/ 2>/dev/null || echo "No Android SDK directory found"
+          fi
 
       - name: Download NCNN Vulkan library
         run: |
