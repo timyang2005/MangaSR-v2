@@ -31,4 +31,5 @@ target_link_libraries(realesrgan-ncnn-vulkan
     log
     jnigraphics
     vulkan
+    -static-openmp
 )
