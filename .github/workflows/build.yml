@@ -72,18 +72,29 @@ jobs:
           echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android library..."
           mkdir -p ${NCNN_DIR}
           
-          curl -L -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/octet-stream" \
-            "https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan.zip" \
-            -o "/tmp/ncnn-${NCNN_VERSION}.zip"
+          for VARIANT in "android-vulkan" "android-vulkan-shared"; do
+            URL="https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-${VARIANT}.zip"
+            echo "Trying: ${VARIANT}"
+            HTTP_CODE=$(curl -sL -o "/dev/null" -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" "${URL}")
+            if [ "${HTTP_CODE}" = "302" ] || [ "${HTTP_CODE}" = "200" ]; then
+              echo "Found: ${VARIANT} (HTTP ${HTTP_CODE})"
+              curl -L -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/octet-stream" \
+                "${URL}" \
+                -o "/tmp/ncnn-${NCNN_VERSION}.zip"
+              break
+            else
+              echo "Not found: ${VARIANT} (HTTP ${HTTP_CODE})"
+            fi
+          done
           
           if [ -f "/tmp/ncnn-${NCNN_VERSION}.zip" ]; then
             echo "Downloaded successfully"
             mkdir -p /tmp/_ncnn_extract
             unzip -q "/tmp/ncnn-${NCNN_VERSION}.zip" -d "/tmp/_ncnn_extract"
             
-            # Find the extracted ncnn directory (e.g., ncnn-20260112-android-vulkan)
-            NCNN_EXTRACTED=$(find /tmp/_ncnn_extract -maxdepth 2 -type d -name "ncnn-*-android-vulkan" | head -n 1)
+            # Find the extracted ncnn directory
+            NCNN_EXTRACTED=$(find /tmp/_ncnn_extract -maxdepth 2 -type d -name "ncnn-*-android-vulkan*" | head -n 1)
             echo "Extracted to: ${NCNN_EXTRACTED}"
             
             if [ -z "${NCNN_EXTRACTED}" ]; then
@@ -92,59 +103,27 @@ jobs:
               exit 1
             fi
             
-            # Copy contents, stripping the outer version directory
-            # e.g., ncnn-20260112-android-vulkan/arm64-v8a/lib/libncnn.a → ncnn/arm64-v8a/lib/libncnn.a
+            # Copy everything (libs + headers + cmake)
             cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/"
             
-            echo "=== NCNN library structure ==="
+            echo "=== NCNN directory structure ==="
             ls -la ${NCNN_DIR}/
-            find ${NCNN_DIR} -type f -name "*.a"
+            find ${NCNN_DIR} -type f -name "*.a" -o -name "*.h" | head -40
+            
+            # Verify key headers exist
+            echo "=== Verifying headers ==="
+            find ${NCNN_DIR}/arm64-v8a/include -name "*.h" | head -10 || true
+            if [ -f "${NCNN_DIR}/arm64-v8a/include/ncnn/net.h" ]; then
+              echo "SUCCESS: net.h found in prebuilt package"
+            else
+              echo "WARNING: net.h not found, listing all .h files..."
+              find ${NCNN_DIR} -name "*.h" | head -20
+              exit 1
+            fi
             
             rm -rf /tmp/_ncnn_extract /tmp/ncnn-${NCNN_VERSION}.zip
           else
-            echo "Failed to download NCNN"
-            exit 1
-          fi
-          
-          # Download ncnn headers from source tarball (prebuilt package does not include headers)
-          echo "Downloading ncnn headers from source tarball..."
-          curl -sL "https://github.com/nihui/ncnn/archive/refs/tags/${NCNN_VERSION}.tar.gz" \
-            -o "/tmp/ncnn-headers.tar.gz"
-          if [ -f "/tmp/ncnn-headers.tar.gz" ]; then
-            echo "ncnn source tarball downloaded, extracting headers..."
-            rm -rf /tmp/_ncnn_headers_extract
-            mkdir -p /tmp/_ncnn_headers_extract
-            tar -xzf "/tmp/ncnn-headers.tar.gz" -C "/tmp/_ncnn_headers_extract"
-            HEADER_DIR=$(find /tmp/_ncnn_headers_extract -maxdepth 2 -type d -name "ncnn-${NCNN_VERSION}" | head -n 1)
-            if [ -n "${HEADER_DIR}" ]; then
-              echo "Headers found at: ${HEADER_DIR}"
-              echo "Source directory structure:"
-              ls -la ${HEADER_DIR}/
-              ls -la ${HEADER_DIR}/src/ 2>/dev/null | head -20 || echo "No src/ directory"
-              # ncnn source places headers in src/ directory (not include/ncnn/)
-              mkdir -p "${NCNN_DIR}/include/ncnn"
-              cp -v ${HEADER_DIR}/src/*.h "${NCNN_DIR}/include/ncnn/" 2>/dev/null || true
-              echo "=== Copied headers ==="
-              find ${NCNN_DIR}/include -name "*.h" | head -20
-              # Verify key headers exist
-              if [ -f "${NCNN_DIR}/include/ncnn/net.h" ]; then
-                echo "SUCCESS: net.h found"
-              else
-                echo "WARNING: net.h missing, listing src/ .h files:"
-                ls ${HEADER_DIR}/src/*.h 2>/dev/null | head -20 || echo "No .h files in src/"
-                ls -la ${HEADER_DIR}/src/ 2>/dev/null | head -20
-                echo "Debug: listing all directories"
-                ls -d ${HEADER_DIR}/*/
-                exit 1
-              fi
-            else
-              echo "ERROR: Could not find ncnn source directory in tarball"
-              ls -la /tmp/_ncnn_headers_extract/
-              exit 1
-            fi
-            rm -rf /tmp/ncnn-headers.tar.gz /tmp/_ncnn_headers_extract
-          else
-            echo "ERROR: Failed to download ncnn source tarball"
+            echo "Failed to download NCNN from all variants"
             exit 1
           fi
 
