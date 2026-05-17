@@ -55,9 +55,11 @@ import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
-import eu.kanade.presentation.reader.SrIndicatorMode
-import eu.kanade.presentation.reader.SrIndicatorPosition
-import eu.kanade.presentation.reader.SrStatusIndicator
+import eu.kanade.presentation.reader.SRStatusIndicator
+import mihon.core.superresolution.SRIndicatorDisplayMode
+import mihon.core.superresolution.SRIndicatorPosition
+import mihon.core.superresolution.SRStatus
+import mihon.core.superresolution.SRStatusInfo
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.tachiyomi.R
@@ -282,10 +284,15 @@ class ReaderActivity : BaseActivity() {
             }
 
             if (!state.menuVisible) {
-                SrStatusIndicator(
-                    srCompleted = state.srCompleted,
-                    position = SrIndicatorPosition.fromValue(srIndicatorPosition),
-                    mode = SrIndicatorMode.fromValue(srIndicatorMode),
+                SRStatusIndicator(
+                    statusInfo = SRStatusInfo(
+                        status = if (state.srCompleted) SRStatus.DONE else SRStatus.IDLE,
+                        pageIndex = state.currentPage,
+                        chapterId = state.currentChapter?.id ?: -1L,
+                        model = SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    ),
+                    position = SRIndicatorPosition.fromKey(srIndicatorPosition),
+                    displayMode = SRIndicatorDisplayMode.fromKey(srIndicatorMode),
                     modifier = Modifier.fillMaxSize(),
                 )
             }
