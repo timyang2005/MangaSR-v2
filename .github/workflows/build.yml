@@ -22,11 +22,12 @@ env:
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx3072m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout repository
@@ -192,10 +193,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.0.0-ci-${{ github.run_id }}
-          release_name: MangaSR v2.0.0 CI Build #${{ github.run_id }}
+          name: MangaSR v2.0.0 CI Build #${{ github.run_id }}
           draft: false
           prerelease: true
           files: ${{ steps.find_apk.outputs.apk_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             ## MangaSR v2 - CI Build
 
@@ -204,5 +206,3 @@ jobs:
             ### Build Info:
             - Commit: ${{ github.sha }}
             - Run ID: ${{ github.run_id }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
