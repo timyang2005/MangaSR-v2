@@ -83,16 +83,25 @@ jobs:
           
           if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
             echo "Extracting NCNN library..."
+            rm -rf /tmp/ncnn-${NCNN_VERSION}-android-vulkan
             unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp
-            ls -la /tmp/ | grep ncnn
-            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/ || echo "Directory not found"
-            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/lib/ || echo "lib directory not found"
-            ls -la /tmp/ncnn-${NCNN_VERSION}-android-vulkan/lib/arm64-v8a/ || echo "arm64-v8a directory not found"
             
-            # The extracted directory should be /tmp/ncnn-20260112-android-vulkan
+            echo "=== Checking /tmp contents ==="
+            ls -la /tmp/ | grep ncnn
+            
+            echo "=== Checking extracted directory ==="
             NCNN_EXTRACT_DIR="/tmp/ncnn-${NCNN_VERSION}-android-vulkan"
-            echo "NCNN extracted directory: ${NCNN_EXTRACT_DIR}"
             ls -la ${NCNN_EXTRACT_DIR}/
+            
+            echo "=== Checking for lib directory ==="
+            if [ -d "${NCNN_EXTRACT_DIR}/lib" ]; then
+              echo "Found lib directory:"
+              ls -la ${NCNN_EXTRACT_DIR}/lib/
+              ls -la ${NCNN_EXTRACT_DIR}/lib/arm64-v8a/ || echo "arm64-v8a not found"
+            else
+              echo "lib directory not found, checking subdirectories..."
+              ls -la ${NCNN_EXTRACT_DIR}/
+            fi
             
             for ABI in arm64-v8a armeabi-v7a x86_64; do
               if [ -d "${NCNN_EXTRACT_DIR}/lib/${ABI}" ]; then
