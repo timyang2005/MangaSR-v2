@@ -14,3 +14,19 @@ local.properties
 
 # macOS specific files
 .DS_Store
+
+# Orphan file from command typo
+.gitignore)
+
+# Temp / debug files
+*.ps1
+gh_token.txt
+commit_msg.txt
+build_log.txt
+ci_logs.txt
+ci_logs2.txt
+*.txt
+*.ps1
+msg_fix.txt
+temp_commit_msg.txt
+tmp_msg.txt
