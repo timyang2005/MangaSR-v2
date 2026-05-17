@@ -108,7 +108,7 @@ jobs:
           
           # Download ncnn headers from GitHub (prebuilt package does not include headers)
           echo "Downloading ncnn headers from GitHub..."
-          mkdir -p "${NCNN_DIR}/include"
+          mkdir -p "${NCNN_DIR}/include/ncnn"
           curl -L "https://raw.githubusercontent.com/nihui/ncnn/master/include/ncnn/allocator.h" \
             -o "${NCNN_DIR}/include/ncnn/allocator.h" 2>/dev/null
           
