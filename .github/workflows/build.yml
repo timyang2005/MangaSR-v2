@@ -18,8 +18,8 @@ on:
 
 env:
   JAVA_VERSION: '17'
+  ANDROID_HOME: /opt/android-sdk
   ANDROID_SDK_ROOT: /opt/android-sdk
-  ANDROID_NDK_HOME: /opt/android-sdk/ndk/27.0.12077973
   GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx4096m -Dorg.gradle.daemon=false'
   BUILD_TYPE: ${{ inputs.build_type || 'debug' }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,39 +50,17 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android NDK and SDK components
+      - name: Configure Android SDK
         run: |
-          set -e
+          export ANDROID_HOME=/opt/android-sdk
           export ANDROID_SDK_ROOT=/opt/android-sdk
-          export ANDROID_LICENSE_ROOT=$ANDROID_SDK_ROOT/licenses
-          mkdir -p $ANDROID_LICENSE_ROOT
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_LICENSE_ROOT/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> $ANDROID_LICENSE_ROOT/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_LICENSE_ROOT/android-sdk-license
-          echo "e6b7c2ab7fa2298c15165e9583d0acf0b04a2232" >> $ANDROID_LICENSE_ROOT/android-sdk-license
           
-          echo "Installing Android NDK..."
-          if [ -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973" ]; then
-            echo "NDK already installed"
-          else
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" 2>&1
-          fi
+          mkdir -p $ANDROID_HOME/licenses
+          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\n84831b9409646a918e30573bab4c9c91346d8abd\nd56f5187479451eabf01fb78af6dfcb131a6481e\ne6b7c2ab7fa2298c15165e9583d0acf0b04a2232\n" > $ANDROID_HOME/licenses/android-sdk-license
+          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           
-          echo "Installing Android platform..."
-          if [ -d "$ANDROID_SDK_ROOT/platforms/android-37" ]; then
-            echo "Platform already installed"
-          else
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37" 2>&1
-          fi
-          
-          echo "Installing build tools..."
-          if [ -d "$ANDROID_SDK_ROOT/build-tools/37.0.0" ]; then
-            echo "Build tools already installed"
-          else
-            $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "build-tools;37.0.0" 2>&1
-          fi
-          
-          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || echo "No NDK found"
+          echo "=== Android SDK setup complete ==="
+          ls -la $ANDROID_HOME/ 2>/dev/null || echo "SDK dir not found"
 
       - name: Download NCNN Vulkan library
         run: |
@@ -90,15 +68,12 @@ jobs:
           NCNN_VERSION="20260112"
           NCNN_DIR="core/superresolution/src/main/cpp/ncnn"
           
-          echo "Removing old NCNN files and clearing git tracking..."
+          echo "Removing old NCNN files..."
           rm -rf ${NCNN_DIR}
-          git rm -rf --cached ${NCNN_DIR} 2>/dev/null || true
           
           echo "Downloading NCNN ${NCNN_VERSION} Vulkan Android library..."
-          
           mkdir -p ${NCNN_DIR}
           
-          # Download to temp location first
           curl -L -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/octet-stream" \
             "https://github.com/nihui/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-android-vulkan.zip" \
@@ -106,27 +81,18 @@ jobs:
           
           if [ -f "/tmp/ncnn-${NCNN_VERSION}.zip" ]; then
             echo "Downloaded successfully"
-            ls -lh "/tmp/ncnn-${NCNN_VERSION}.zip"
-            
-            echo "Extracting..."
             unzip -q "/tmp/ncnn-${NCNN_VERSION}.zip" -d "/tmp/ncnn-extract"
             
-            # Find the extracted NCNN directory
             NCNN_EXTRACTED=$(find /tmp/ncnn-extract -maxdepth 2 -type d -name "ncnn-*" | head -n 1)
-            echo "Found extracted directory: ${NCNN_EXTRACTED}"
+            echo "Extracted to: ${NCNN_EXTRACTED}"
             
-            # Copy all contents from extracted directory
-            cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/" 2>/dev/null || true
+            cp -r "${NCNN_EXTRACTED}"/* "${NCNN_DIR}/"
             
             echo "=== NCNN library structure ==="
             ls -la ${NCNN_DIR}/
-            ls -la ${NCNN_DIR}/arm64-v8a/ 2>/dev/null || echo "No arm64-v8a dir"
-            ls -la ${NCNN_DIR}/arm64-v8a/lib/ 2>/dev/null || echo "No arm64-v8a/lib dir"
-            find ${NCNN_DIR} -type f -name "*.a" | head -20
+            find ${NCNN_DIR} -type f -name "*.a" | head -10
             
-            # Cleanup
-            rm -rf /tmp/ncnn-extract
-            rm -f "/tmp/ncnn-${NCNN_VERSION}.zip"
+            rm -rf /tmp/ncnn-extract /tmp/ncnn-${NCNN_VERSION}.zip
           else
             echo "Failed to download NCNN"
             exit 1
@@ -185,10 +151,10 @@ jobs:
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0.0-ci
-          release_name: MangaSR v2.0.0 CI Build
+          tag_name: v2.0.0-ci-${{ github.run_id }}
+          release_name: MangaSR v2.0.0 CI Build #${{ github.run_id }}
           draft: false
-          prerelease: false
+          prerelease: true
           files: ${{ steps.find_apk.outputs.apk_path }}
           body: |
             ## MangaSR v2 - CI Build
@@ -197,5 +163,6 @@ jobs:
 
             ### Build Info:
             - Commit: ${{ github.sha }}
+            - Run ID: ${{ github.run_id }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
