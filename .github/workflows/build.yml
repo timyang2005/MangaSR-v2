@@ -78,12 +78,14 @@ jobs:
             -o "/tmp/ncnn-android-vulkan.zip"
           
           if [ -f "/tmp/ncnn-android-vulkan.zip" ]; then
-            unzip -q -o "/tmp/ncnn-android-vulkan.zip" -d "/tmp/ncnn-android-vulkan"
-            ls -la /tmp/ncnn-android-vulkan/
+            rm -rf /tmp/ncnn-android-vulkan
+            unzip -q "/tmp/ncnn-android-vulkan.zip" -d /tmp
+            ls -la /tmp/
             
-            # Find the actual extracted directory (it's usually named ncnn-...-android-vulkan)
-            NCNN_EXTRACT_DIR=$(find /tmp/ncnn-android-vulkan -maxdepth 1 -type d -name "ncnn*" | head -n 1)
+            # The extracted directory should be /tmp/ncnn-20260112-android-vulkan
+            NCNN_EXTRACT_DIR="/tmp/ncnn-${NCNN_VERSION}-android-vulkan"
             echo "NCNN extracted directory: ${NCNN_EXTRACT_DIR}"
+            ls -la ${NCNN_EXTRACT_DIR}/
             
             for ABI in arm64-v8a armeabi-v7a x86_64; do
               if [ -d "${NCNN_EXTRACT_DIR}/lib/${ABI}" ]; then
