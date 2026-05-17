@@ -1032,6 +1032,7 @@ class ReaderActivity : BaseActivity() {
                 srManager.release()
             }
         }
+    }
 
     private fun releaseSrOverride() {
         srManager.setReaderOverride(false)
