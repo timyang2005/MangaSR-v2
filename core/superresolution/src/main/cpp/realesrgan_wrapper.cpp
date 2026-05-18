@@ -165,7 +165,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             for (int x = 0; x < padded_w; x++) {
                 int px = std::min(x, w - 1);
                 int py = std::min(y, h - 1);
-                dst_row[x] = static_cast<float*>(inimage.channel(c).row(py))[px];
+                dst_row[x] = static_cast<const float*>(inimage.channel(c).row(py))[px];
             }
         }
     }
