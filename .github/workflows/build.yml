@@ -139,12 +139,18 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Debug Gradle wrapper
+        run: |
+          echo "=== gradle-wrapper.properties ==="
+          cat gradle/wrapper/gradle-wrapper.properties
+          echo "=== Clearing any cached wrapper dists ==="
+          rm -rf ~/.gradle/wrapper/dists/*mirrors* ~/.gradle/wrapper/dists/*tencent* 2>/dev/null || true
+          ls -la ~/.gradle/wrapper/dists/ 2>/dev/null || echo "No dists cached"
 
       - name: Build APK
         run: |
