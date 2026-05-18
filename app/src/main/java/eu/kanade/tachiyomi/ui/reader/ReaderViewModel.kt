@@ -60,6 +60,7 @@ import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.core.superresolution.SRModel
 import mihon.core.superresolution.SRPreloadDispatcher
+import mihon.core.superresolution.SRStatus
 import mihon.core.superresolution.SRStatusInfo
 import mihon.core.superresolution.SRStatusViewModel
 import tachiyomi.core.common.preference.toggle
