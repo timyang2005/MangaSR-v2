@@ -73,16 +73,18 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         return nullptr;
     }
 
-    int pixel_count = in_w * in_h;
-
     ncnn::Mat inimage(in_w, in_h, 3);
-    float* in_data = static_cast<float*>(inimage.data);
-
     const unsigned char* rgba_data = static_cast<const unsigned char*>(pixels);
-    for (int i = 0; i < pixel_count; i++) {
-        in_data[i * 3 + 0] = rgba_data[i * 4 + 0] / 255.0f;
-        in_data[i * 3 + 1] = rgba_data[i * 4 + 1] / 255.0f;
-        in_data[i * 3 + 2] = rgba_data[i * 4 + 2] / 255.0f;
+    for (int y = 0; y < in_h; y++) {
+        const unsigned char* rgba_row = rgba_data + y * in_w * 4;
+        float* r_row = static_cast<float*>(inimage.channel(0).row(y));
+        float* g_row = static_cast<float*>(inimage.channel(1).row(y));
+        float* b_row = static_cast<float*>(inimage.channel(2).row(y));
+        for (int x = 0; x < in_w; x++) {
+            r_row[x] = rgba_row[x * 4 + 0] / 255.0f;
+            g_row[x] = rgba_row[x * 4 + 1] / 255.0f;
+            b_row[x] = rgba_row[x * 4 + 2] / 255.0f;
+        }
     }
 
     AndroidBitmap_unlockPixels(env, input_bitmap);
@@ -119,18 +121,18 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         return nullptr;
     }
 
-    int out_pixel_count = out_w * out_h;
     unsigned char* out_rgba = static_cast<unsigned char*>(out_pixels);
-    const float* out_data = static_cast<const float*>(outimage.data);
-
-    for (int i = 0; i < out_pixel_count; i++) {
-        float r = out_data[i * 3 + 0] * 255.0f;
-        float g = out_data[i * 3 + 1] * 255.0f;
-        float b = out_data[i * 3 + 2] * 255.0f;
-        out_rgba[i * 4 + 0] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, r)));
-        out_rgba[i * 4 + 1] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, g)));
-        out_rgba[i * 4 + 2] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, b)));
-        out_rgba[i * 4 + 3] = 255;
+    for (int y = 0; y < out_h; y++) {
+        const float* r_row = static_cast<const float*>(outimage.channel(0).row(y));
+        const float* g_row = static_cast<const float*>(outimage.channel(1).row(y));
+        const float* b_row = static_cast<const float*>(outimage.channel(2).row(y));
+        unsigned char* rgba_row = out_rgba + y * out_w * 4;
+        for (int x = 0; x < out_w; x++) {
+            rgba_row[x * 4 + 0] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, r_row[x] * 255.0f)));
+            rgba_row[x * 4 + 1] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, g_row[x] * 255.0f)));
+            rgba_row[x * 4 + 2] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, b_row[x] * 255.0f)));
+            rgba_row[x * 4 + 3] = 255;
+        }
     }
 
     if (gray_levels > 0) {
