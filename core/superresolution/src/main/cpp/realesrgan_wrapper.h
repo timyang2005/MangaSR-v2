@@ -6,9 +6,6 @@
 class RealESRGANWrapper {
 public:
     ncnn::Net net;
-    ncnn::VkCompute* compute = nullptr;
-    ncnn::VkAllocator* blob_vkallocator = nullptr;
-    ncnn::VkAllocator* staging_vkallocator = nullptr;
     int scale = 2;
     int tilesize = 200;
     int gpuid = -1;

@@ -224,8 +224,6 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeRelease(
 
     if (handle == 0) return;
     auto* wrapper = reinterpret_cast<RealESRGANWrapper*>(handle);
-    if (wrapper->blob_vkallocator) delete wrapper->blob_vkallocator;
-    if (wrapper->staging_vkallocator) delete wrapper->staging_vkallocator;
     delete wrapper;
     LOGI("RealESRGAN released");
 }

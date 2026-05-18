@@ -16,12 +16,6 @@ bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int
         net.opt.use_vulkan_compute = true;
         int device_id = (gpuid < ncnn::get_gpu_count()) ? gpuid : ncnn::get_default_gpu_index();
         net.set_vulkan_device(device_id);
-
-        blob_vkallocator = new ncnn::VkBlobAllocator(net.vulkan_device());
-        staging_vkallocator = new ncnn::VkStagingAllocator(net.vulkan_device());
-        net.opt.blob_vkallocator = blob_vkallocator;
-        net.opt.workspace_vkallocator = blob_vkallocator;
-        net.opt.staging_vkallocator = staging_vkallocator;
     }
 
     net.opt.use_fp16_storage = useFp16;
@@ -157,10 +151,6 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
     }
 
     bool use_gpu = (gpuid >= 0);
-    ncnn::VkCompute* cmd = nullptr;
-    if (use_gpu) {
-        cmd = new ncnn::VkCompute(net.vulkan_device());
-    }
 
     for (int yi = 0; yi < numY; yi++) {
         for (int xi = 0; xi < numX; xi++) {
@@ -181,31 +171,14 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
             }
 
             ncnn::Mat out_tile;
-
-            if (use_gpu && cmd) {
-                ncnn::VkMat in_tile_gpu;
-                cmd->record_clone(in_tile, in_tile_gpu);
-
-                ncnn::VkMat out_tile_gpu;
-                ncnn::Extractor ex = net.create_extractor();
-                const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
-                const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
-                ex.input(input_blob, in_tile_gpu);
-                ex.extract(output_blob, out_tile_gpu, *cmd);
-
-                cmd->record_clone(out_tile_gpu, out_tile);
-                cmd->submit_and_wait();
-            } else {
-                ncnn::Extractor ex = net.create_extractor();
-                const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
-                const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
-                ex.input(input_blob, in_tile);
-                ex.extract(output_blob, out_tile);
-            }
+            ncnn::Extractor ex = net.create_extractor();
+            const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
+            const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
+            ex.input(input_blob, in_tile);
+            ex.extract(output_blob, out_tile);
 
             if (out_tile.empty()) {
                 LOGE("Inference failed for tile (%d,%d)", xi, yi);
-                if (cmd) delete cmd;
                 return false;
             }
 
@@ -285,8 +258,6 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
             }
         }
     }
-
-    if (cmd) delete cmd;
 
     LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d)", w, h, out_w, out_h, numX, numY);
     return true;
