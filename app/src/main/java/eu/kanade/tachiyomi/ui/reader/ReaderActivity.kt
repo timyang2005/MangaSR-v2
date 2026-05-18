@@ -244,6 +244,11 @@ class ReaderActivity : BaseActivity() {
                     }
                     ReaderViewModel.Event.PageChanged -> {
                         displayRefreshHost.flash()
+                        // 更新当前页面的 sr 状态
+                        val state = viewModel.state.value
+                        val currentChapter = state.viewerChapters?.currChapter
+                        val currentPage = currentChapter?.pages?.getOrNull(state.currentPage - 1) as? ReaderPage
+                        viewModel.onCurrentPageChanged(currentPage)
                     }
                     is ReaderViewModel.Event.SetOrientation -> {
                         setOrientation(event.orientation)
@@ -267,6 +272,7 @@ class ReaderActivity : BaseActivity() {
 
     private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent {
         val state by viewModel.state.collectAsState()
+        val srStatusInfo by viewModel.srStatusViewModel.srStatus.collectAsState()
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
         val srIndicatorPosition by readerPreferences.srIndicatorPosition.collectAsState()
         val srIndicatorMode by readerPreferences.srIndicatorMode.collectAsState()
@@ -291,12 +297,7 @@ class ReaderActivity : BaseActivity() {
 
             if (!state.menuVisible) {
                 SRStatusIndicator(
-                    statusInfo = SRStatusInfo(
-                        status = if (state.srCompleted) SRStatus.DONE else SRStatus.IDLE,
-                        pageIndex = state.currentPage,
-                        chapterId = state.currentChapter?.chapter?.id ?: -1L,
-                        model = SRModel.REALCUGAN_2X_CONSERVATIVE,
-                    ),
+                    statusInfo = srStatusInfo,
                     position = SRIndicatorPosition.fromKey(srIndicatorPosition),
                     displayMode = SRIndicatorDisplayMode.fromKey(srIndicatorMode),
                     modifier = Modifier.fillMaxSize(),

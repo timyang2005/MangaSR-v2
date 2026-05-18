@@ -10,14 +10,38 @@ class SRStatusViewModel : ViewModel() {
     val srStatus: StateFlow<SRStatusInfo> = _srStatus.asStateFlow()
 
     fun onSRStart(chapterId: Long, pageIndex: Int, model: SRModel) {
-        _srStatus.value = SRStatusInfo(SRStatus.PROCESSING, pageIndex, chapterId, model)
+        _srStatus.value = SRStatusInfo(
+            status = SRStatus.PROCESSING,
+            pageIndex = pageIndex,
+            chapterId = chapterId,
+            model = model,
+            startTimeMs = System.currentTimeMillis()
+        )
     }
 
     fun onSRDone(chapterId: Long, pageIndex: Int, model: SRModel, elapsedMs: Long) {
-        _srStatus.value = SRStatusInfo(SRStatus.DONE, pageIndex, chapterId, model, elapsedMs)
+        _srStatus.value = SRStatusInfo(
+            status = SRStatus.DONE,
+            pageIndex = pageIndex,
+            chapterId = chapterId,
+            model = model,
+            elapsedMs = elapsedMs
+        )
     }
 
     fun onSRIdle() {
         _srStatus.value = SRStatusInfo(SRStatus.IDLE, -1, -1, SRModel.REALCUGAN_2X_CONSERVATIVE)
+    }
+
+    /**
+     * 更新当前处理中的已用时间（用于实时更新计时器）
+     */
+    fun updateProcessingElapsedTime() {
+        val current = _srStatus.value
+        if (current.status == SRStatus.PROCESSING && current.startTimeMs != null) {
+            _srStatus.value = current.copy(
+                elapsedMs = System.currentTimeMillis() - current.startTimeMs
+            )
+        }
     }
 }

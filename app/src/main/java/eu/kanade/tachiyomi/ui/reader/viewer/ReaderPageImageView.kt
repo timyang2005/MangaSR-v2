@@ -183,11 +183,20 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private var srRefreshRunnable: Runnable? = null
 
+    private var srStartTimestamp: Long? = null
+
     private fun scheduleSrRefresh(manager: SuperResolutionManager) {
         cancelSrRefresh()
         val page = readerPage ?: return
         val chId = page.chapter.chapter.id ?: -1L
         val cacheKey = buildSrCacheKey(chId, page.index, manager)
+        
+        // 通知 sr 开始处理
+        onSrStatusChanged?.invoke(false)
+        
+        // 记录开始时间
+        srStartTimestamp = System.currentTimeMillis()
+        
         var attempts = 0
         val maxAttempts = 20
         val runnable = object : Runnable {

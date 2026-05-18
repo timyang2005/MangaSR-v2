@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,10 +24,6 @@ import mihon.core.superresolution.SRIndicatorDisplayMode
 import mihon.core.superresolution.SRIndicatorPosition
 import mihon.core.superresolution.SRStatus
 import mihon.core.superresolution.SRStatusInfo
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Image
 
 @Composable
 fun SRStatusIndicator(
@@ -47,8 +47,14 @@ fun SRStatusIndicator(
     }
 
     val labelText = when (statusInfo.status) {
-        SRStatus.PROCESSING -> "SR"
-        SRStatus.DONE -> "SR${statusInfo.elapsedMs?.let { " ${it}ms" } ?: ""}"
+        SRStatus.PROCESSING -> {
+            val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
+            seconds
+        }
+        SRStatus.DONE -> {
+            val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
+            seconds
+        }
         SRStatus.IDLE -> "SR"
     }
 

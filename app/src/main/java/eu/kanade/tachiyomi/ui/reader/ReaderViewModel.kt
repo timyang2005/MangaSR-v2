@@ -42,7 +42,9 @@ import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.storage.cacheImageDir
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -53,8 +55,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
+import mihon.core.superresolution.SRStatusInfo
+import mihon.core.superresolution.SRStatusViewModel
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
@@ -108,6 +113,9 @@ class ReaderViewModel @JvmOverloads constructor(
 
     private val eventChannel = Channel<Event>()
     val eventFlow = eventChannel.receiveAsFlow()
+
+    val srStatusViewModel = SRStatusViewModel()
+    private var timerJob: Job? = null
 
     /**
      * The manga loaded in the reader. It can be null when instantiated for a short time.
@@ -765,10 +773,51 @@ class ReaderViewModel @JvmOverloads constructor(
         return page.srBitmap
     }
 
+    private var currentSrStartTime: Long? = null
+
     fun onSrStatusChanged(page: ReaderPage, completed: Boolean) {
         val currentPage = state.value.currentChapter?.pages?.getOrNull(state.value.currentPage - 1)
         if (currentPage == page) {
-            mutableState.update { it.copy(srCompleted = completed) }
+            // 更新 sr 状态，只有当是当前页面时才更新
+            if (completed) {
+                // sr 完成，计算经过时间并停止计时器
+                val elapsed = currentSrStartTime?.let { System.currentTimeMillis() - it } ?: 0L
+                srStatusViewModel.onSRDone(
+                    chapterId = page.chapter.chapter.id ?: -1L,
+                    pageIndex = page.index,
+                    model = SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    elapsedMs = elapsed
+                )
+                stopTimer()
+            } else {
+                // sr 开始，启动计时器
+                currentSrStartTime = System.currentTimeMillis()
+                srStatusViewModel.onSRStart(
+                    chapterId = page.chapter.chapter.id ?: -1L,
+                    pageIndex = page.index,
+                    model = SRModel.REALCUGAN_2X_CONSERVATIVE
+                )
+                startTimer()
+            }
+        }
+    }
+
+    // 当页面切换时，设置对应 sr 状态
+    fun onCurrentPageChanged(page: ReaderPage?) {
+        if (page?.srBitmap != null) {
+            // 页面已经有 sr 图
+            srStatusViewModel.onSRDone(
+                chapterId = page.chapter.chapter.id ?: -1L,
+                pageIndex = page.index,
+                model = SRModel.REALCUGAN_2X_CONSERVATIVE,
+                elapsedMs = 0
+            )
+        } else if (page != null) {
+            // 没有 sr 图，检查是否正在处理
+            // 目前没有简单方式知道，所以先设为 IDLE
+            srStatusViewModel.onSRIdle()
+        } else {
+            srStatusViewModel.onSRIdle()
         }
     }
 
@@ -784,7 +833,28 @@ class ReaderViewModel @JvmOverloads constructor(
                 if (page is ReaderPage) page.srBitmap = null
             }
         }
-        mutableState.update { it.copy(srCompleted = false) }
+        srStatusViewModel.onSRIdle()
+    }
+
+    /**
+     * 开始计时任务（仅在 PROCESSING 状态时需要）
+     */
+    private fun startTimer() {
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                delay(100) // 每 100ms 更新一次计时器
+                srStatusViewModel.updateProcessingElapsedTime()
+            }
+        }
+    }
+
+    /**
+     * 停止计时任务
+     */
+    private fun stopTimer() {
+        timerJob?.cancel()
+        timerJob = null
     }
 
     fun showMenus(visible: Boolean) {
@@ -998,7 +1068,7 @@ class ReaderViewModel @JvmOverloads constructor(
         val dialog: Dialog? = null,
         val menuVisible: Boolean = false,
         @IntRange(from = -100, to = 100) val brightnessOverlayValue: Int = 0,
-        val srCompleted: Boolean = false,
+        val srStatusInfo: SRStatusInfo = SRStatusInfo(mihon.core.superresolution.SRStatus.IDLE, -1, -1, mihon.core.superresolution.SRModel.REALCUGAN_2X_CONSERVATIVE),
     ) {
         val currentChapter: ReaderChapter?
             get() = viewerChapters?.currChapter

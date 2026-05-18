@@ -7,5 +7,6 @@ data class SRStatusInfo(
     val pageIndex: Int,
     val chapterId: Long,
     val model: SRModel,
+    val startTimeMs: Long? = null,
     val elapsedMs: Long? = null,
 )
