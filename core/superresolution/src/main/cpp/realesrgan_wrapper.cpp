@@ -2,15 +2,82 @@
 #include <android/log.h>
 #include <algorithm>
 #include <cstring>
+#include <unistd.h>
 #include <vector>
 
 #define LOG_TAG "RealESRGANJNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int gpu_id, const char* model_type) {
+int RealESRGANWrapper::calculateOptimalTileSize() {
+    uint32_t available_mb = 0;
+
+    if (gpuid >= 0 && ncnn::get_gpu_count() > gpuid) {
+        uint32_t heap_budget_mb = ncnn::get_gpu_info(gpuid).heap_budget();
+        LOGI("GPU heap_budget: %u MB", heap_budget_mb);
+
+        long page_size = sysconf(_SC_PAGESIZE);
+        long phys_pages = sysconf(_SC_PHYS_PAGES);
+        uint32_t total_ram_mb = 0;
+        if (page_size > 0 && phys_pages > 0) {
+            total_ram_mb = static_cast<uint32_t>(
+                (static_cast<long long>(phys_pages) * page_size) / (1024LL * 1024LL)
+            );
+        }
+        LOGI("Total RAM: %u MB", total_ram_mb);
+
+        uint32_t safe_ram_mb = total_ram_mb / 5;
+        available_mb = std::min(heap_budget_mb, safe_ram_mb);
+        LOGI("Effective available (min of GPU budget and RAM/5): %u MB", available_mb);
+    } else {
+        long page_size = sysconf(_SC_PAGESIZE);
+        long phys_pages = sysconf(_SC_PHYS_PAGES);
+        if (page_size > 0 && phys_pages > 0) {
+            available_mb = static_cast<uint32_t>(
+                (static_cast<long long>(phys_pages) * page_size) / (1024LL * 1024LL)
+            );
+        }
+        available_mb = available_mb / 5;
+        LOGI("CPU mode, total RAM/5: %u MB", available_mb);
+    }
+
+    int optimal;
+    if (available_mb >= 2500) {
+        optimal = 400;
+    } else if (available_mb >= 1200) {
+        optimal = 200;
+    } else if (available_mb >= 500) {
+        optimal = 100;
+    } else {
+        optimal = 64;
+    }
+
+    float bytes_per_pixel = useFp16 ? 2.0f : 4.0f;
+    float tile_input_mb = (optimal * optimal * 3 * bytes_per_pixel) / (1024.0f * 1024.0f);
+    float intermediate_multiplier = (modelType == "realcugan") ? 20.0f : 40.0f;
+    float tile_total_mb = tile_input_mb * (1.0f + scale * scale) * intermediate_multiplier;
+
+    if (tile_total_mb > available_mb * 0.8f) {
+        LOGI("tile_size=%d needs ~%.0f MB, exceeds 80%% of available %u MB, reducing",
+             optimal, tile_total_mb, available_mb);
+        while (optimal > 64) {
+            optimal = (optimal == 400) ? 200 : (optimal == 200) ? 100 : 64;
+            tile_input_mb = (optimal * optimal * 3 * bytes_per_pixel) / (1024.0f * 1024.0f);
+            tile_total_mb = tile_input_mb * (1.0f + scale * scale) * intermediate_multiplier;
+            if (tile_total_mb <= available_mb * 0.8f) break;
+        }
+    }
+
+    LOGI("Optimal tile_size: %d (available=%u MB, model=%s, scale=%d, fp16=%d)",
+         optimal, available_mb, modelType.c_str(), scale, useFp16);
+    return optimal;
+}
+
+bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int gpu_id, const char* model_type, int initial_scale) {
     gpuid = gpu_id;
     modelType = model_type ? model_type : "realesrgan";
+    scale = initial_scale > 0 ? initial_scale : 2;
+    lastScale = scale;
 
     if (gpuid >= 0) {
         net.opt.use_vulkan_compute = true;
@@ -33,8 +100,11 @@ bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int
         return false;
     }
 
+    tilesize = calculateOptimalTileSize();
+
     loaded = true;
-    LOGI("Model loaded: type=%s, param=%s, model=%s, gpuid=%d, fp16=%d", modelType.c_str(), param_path, model_path, gpuid, useFp16);
+    LOGI("Model loaded: type=%s, param=%s, model=%s, gpuid=%d, fp16=%d, scale=%d, tilesize=%d",
+         modelType.c_str(), param_path, model_path, gpuid, useFp16, scale, tilesize);
     return true;
 }
 
@@ -45,10 +115,16 @@ static inline float blendWeight(int pos, int fade_size) {
     return static_cast<float>(pos) / static_cast<float>(fade_size);
 }
 
-bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
+bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
     if (!loaded) {
         LOGE("Model not loaded");
         return false;
+    }
+
+    if (scale != lastScale) {
+        LOGI("Scale changed from %d to %d, recalculating tile_size", lastScale, scale);
+        tilesize = calculateOptimalTileSize();
+        lastScale = scale;
     }
 
     int w = inimage.w;
@@ -67,7 +143,7 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
         memset(ch_data, 0, out_w * out_h * sizeof(float));
     }
 
-    std::vector<float> weight_sum(out_w * out_h, 0.0f);
+    std::vector<uint16_t> weight_sum(out_w * out_h, 0);
 
     int tile_size = tilesize > 0 ? tilesize : 200;
     int min_overlap = 12;
@@ -149,8 +225,6 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
     for (int i = 0; i < numY - 1; i++) {
         padBottom[i] = locsY[i] + tile_size - locsY[i + 1] - padTop[i + 1];
     }
-
-    bool use_gpu = (gpuid >= 0);
 
     for (int yi = 0; yi < numY; yi++) {
         for (int xi = 0; xi < numX; xi++) {
@@ -239,7 +313,7 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
 
                         dst_row[dx] += src_row[sx] * wt;
                         if (c == 0) {
-                            weight_sum[out_idx] += wt;
+                            weight_sum[out_idx] += static_cast<uint16_t>(wt * 256 + 0.5f);
                         }
                     }
                 }
@@ -251,14 +325,14 @@ bool RealESRGANWrapper::process(ncnn::Mat inimage, ncnn::Mat& outimage) {
         for (int y = 0; y < out_h; y++) {
             float* dst_row = static_cast<float*>(outimage.channel(c).row(y));
             for (int x = 0; x < out_w; x++) {
-                float ws = weight_sum[y * out_w + x];
-                if (ws > 0.0f) {
-                    dst_row[x] /= ws;
+                uint16_t ws = weight_sum[y * out_w + x];
+                if (ws > 0) {
+                    dst_row[x] = dst_row[x] * 256.0f / static_cast<float>(ws);
                 }
             }
         }
     }
 
-    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d)", w, h, out_w, out_h, numX, numY);
+    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d)", w, h, out_w, out_h, numX, numY, tile_size);
     return true;
 }

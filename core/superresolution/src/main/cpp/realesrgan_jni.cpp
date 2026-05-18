@@ -19,7 +19,7 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_mihon_core_superresolution_RealESRGANProcessor_nativeInit(
     JNIEnv *env, jobject thiz,
-    jstring param_path, jstring bin_path, jint gpuid, jstring model_type, jboolean use_fp16) {
+    jstring param_path, jstring bin_path, jint gpuid, jstring model_type, jboolean use_fp16, jint scale) {
 
     auto* wrapper = new RealESRGANWrapper();
     wrapper->useFp16 = (use_fp16 == JNI_TRUE);
@@ -28,7 +28,7 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeInit(
     const char *model = env->GetStringUTFChars(bin_path, nullptr);
     const char *type = env->GetStringUTFChars(model_type, nullptr);
 
-    bool result = wrapper->load(param, model, gpuid, type);
+    bool result = wrapper->load(param, model, gpuid, type, scale);
 
     env->ReleaseStringUTFChars(param_path, param);
     env->ReleaseStringUTFChars(bin_path, model);

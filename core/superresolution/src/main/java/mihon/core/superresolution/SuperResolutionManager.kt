@@ -19,6 +19,8 @@ class SuperResolutionManager(
 ) {
     private val mutex = Mutex()
 
+    private val cacheLock = Any()
+
     private val maxCacheSize = 32
 
     private val srCache = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
@@ -61,21 +63,17 @@ class SuperResolutionManager(
         VulkanHelper.isVulkanSupported(context) && VulkanHelper.getGpuCount() > 0
     }
 
-    @Synchronized
-    fun getCachedResult(cacheKey: String): Bitmap? = srCache[cacheKey]
+    fun getCachedResult(cacheKey: String): Bitmap? = synchronized(cacheLock) { srCache[cacheKey] }
 
-    @Synchronized
-    fun putCachedResult(cacheKey: String, bitmap: Bitmap) {
+    fun putCachedResult(cacheKey: String, bitmap: Bitmap) = synchronized(cacheLock) {
         srCache[cacheKey] = bitmap
     }
 
-    @Synchronized
-    fun removeCachedResult(cacheKey: String) {
+    fun removeCachedResult(cacheKey: String) = synchronized(cacheLock) {
         srCache.remove(cacheKey)
     }
 
-    @Synchronized
-    fun clearSrCache() {
+    fun clearSrCache() = synchronized(cacheLock) {
         srCache.clear()
         logcat(LogPriority.INFO) { "SR: Cleared SR result cache" }
     }
