@@ -237,7 +237,6 @@ class SuperResolutionManager(
     }
 
     fun ensureModelsExtracted() {
-        val modelManager = ModelManager(context)
-        modelManager.ensureModelsExtracted()
+        ModelManager.getInstance(context).ensureModelsExtracted()
     }
 }
