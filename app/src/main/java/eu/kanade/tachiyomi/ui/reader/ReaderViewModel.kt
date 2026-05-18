@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
+import mihon.core.superresolution.SRModel
 import mihon.core.superresolution.SRStatusInfo
 import mihon.core.superresolution.SRStatusViewModel
 import tachiyomi.core.common.preference.toggle
