@@ -207,7 +207,14 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             int x0 = xi * tile_size;
             int y0 = yi * tile_size;
 
-            ncnn::Mat in_tile = padded_in.row_range(y0, tile_size).col_range(x0, tile_size);
+            ncnn::Mat in_tile(tile_size, tile_size, 3);
+            for (int c = 0; c < 3; c++) {
+                for (int y = 0; y < tile_size; y++) {
+                    const float* src_row = static_cast<const float*>(padded_in.channel(c).row(y0 + y));
+                    float* dst_row = static_cast<float*>(in_tile.channel(c).row(y));
+                    memcpy(dst_row, src_row + x0, tile_size * sizeof(float));
+                }
+            }
 
             ncnn::Mat out_tile;
             ncnn::Extractor ex = net.create_extractor();
