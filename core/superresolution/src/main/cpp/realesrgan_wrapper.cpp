@@ -4,6 +4,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <vector>
+#include <cmath>
 
 #define LOG_TAG "RealESRGANJNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -151,24 +152,110 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         return true;
     }
 
-    int pad_w = ((w + tile_size - 1) / tile_size) * tile_size - w;
-    int pad_h = ((h + tile_size - 1) / tile_size) * tile_size - h;
-    int padded_w = w + pad_w;
-    int padded_h = h + pad_h;
-    int padded_out_w = padded_w * scale;
-    int padded_out_h = padded_h * scale;
+    int widthOri = w;
+    int heightOri = h;
+    int padded_w = w;
+    int padded_h = h;
+    if (padded_w < tile_size) padded_w = tile_size;
+    if (padded_h < tile_size) padded_h = tile_size;
+    bool withPadding = (padded_w != widthOri || padded_h != heightOri);
 
-    ncnn::Mat padded_in(padded_w, padded_h, 3);
-    for (int c = 0; c < 3; c++) {
-        for (int y = 0; y < padded_h; y++) {
-            float* dst_row = static_cast<float*>(padded_in.channel(c).row(y));
-            for (int x = 0; x < padded_w; x++) {
-                int px = std::min(x, w - 1);
-                int py = std::min(y, h - 1);
-                dst_row[x] = static_cast<const float*>(inimage.channel(c).row(py))[px];
+    ncnn::Mat padded_in;
+    if (withPadding) {
+        padded_in = ncnn::Mat(padded_w, padded_h, 3);
+        for (int c = 0; c < 3; c++) {
+            for (int y = 0; y < padded_h; y++) {
+                float* dst_row = static_cast<float*>(padded_in.channel(c).row(y));
+                for (int x = 0; x < padded_w; x++) {
+                    int px = std::min(x, widthOri - 1);
+                    int py = std::min(y, heightOri - 1);
+                    dst_row[x] = static_cast<const float*>(inimage.channel(c).row(py))[px];
+                }
             }
         }
+    } else {
+        padded_in = inimage;
     }
+
+    int numX = 1;
+    for (; numX < 100 && (tile_size * numX - padded_w) / std::max(1, numX - 1) < 12; numX++);
+    int numY = 1;
+    for (; numY < 100 && (tile_size * numY - padded_h) / std::max(1, numY - 1) < 12; numY++);
+
+    if (numX == 1 && numY == 1) {
+        outimage.create(out_w, out_h, 3);
+        if (outimage.empty()) {
+            LOGE("Failed to create output Mat");
+            return false;
+        }
+
+        ncnn::Mat out_tile;
+        ncnn::Extractor ex = net.create_extractor();
+        const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
+        const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
+        ex.input(input_blob, padded_in);
+        ex.extract(output_blob, out_tile);
+
+        if (out_tile.empty()) {
+            LOGE("Inference failed");
+            return false;
+        }
+
+        for (int c = 0; c < 3; c++) {
+            for (int y = 0; y < out_h; y++) {
+                const float* src_row = static_cast<const float*>(out_tile.channel(c).row(y));
+                float* dst_row = static_cast<float*>(outimage.channel(c).row(y));
+                memcpy(dst_row, src_row, out_w * sizeof(float));
+            }
+        }
+        LOGI("Process complete (single padded tile): %dx%d -> %dx%d", w, h, out_w, out_h);
+        return true;
+    }
+
+    std::vector<int> locsX(numX);
+    std::vector<int> locsY(numY);
+    std::vector<int> padLeft(numX);
+    std::vector<int> padTop(numY);
+    std::vector<int> padRight(numX);
+    std::vector<int> padBottom(numY);
+
+    int totalLapX = tile_size * numX - padded_w;
+    int totalLapY = tile_size * numY - padded_h;
+    int baseLapX = totalLapX / std::max(1, numX - 1);
+    int baseLapY = totalLapY / std::max(1, numY - 1);
+    int extraLapX = totalLapX - baseLapX * (numX - 1);
+    int extraLapY = totalLapY - baseLapY * (numY - 1);
+
+    locsX[0] = 0;
+    for (int i = 1; i < numX; i++) {
+        locsX[i] = locsX[i - 1] + tile_size - baseLapX - (i <= extraLapX ? 1 : 0);
+    }
+    locsY[0] = 0;
+    for (int i = 1; i < numY; i++) {
+        locsY[i] = locsY[i - 1] + tile_size - baseLapY - (i <= extraLapY ? 1 : 0);
+    }
+
+    padLeft[0] = 0;
+    padTop[0] = 0;
+    padRight[numX - 1] = 0;
+    padBottom[numY - 1] = 0;
+    for (int i = 1; i < numX; i++) {
+        padLeft[i] = (locsX[i - 1] + tile_size - locsX[i]) / 2;
+    }
+    for (int i = 1; i < numY; i++) {
+        padTop[i] = (locsY[i - 1] + tile_size - locsY[i]) / 2;
+    }
+    for (int i = 0; i < numX - 1; i++) {
+        padRight[i] = locsX[i] + tile_size - locsX[i + 1] - padLeft[i + 1];
+    }
+    for (int i = 0; i < numY - 1; i++) {
+        padBottom[i] = locsY[i] + tile_size - locsY[i + 1] - padTop[i + 1];
+    }
+
+    int padded_out_w = padded_w * scale;
+    int padded_out_h = padded_h * scale;
+    int out_tile_w = tile_size * scale;
+    int out_tile_h = tile_size * scale;
 
     ncnn::Mat padded_out(padded_out_w, padded_out_h, 3);
     if (padded_out.empty()) {
@@ -181,77 +268,64 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         memset(ch_data, 0, padded_out_w * padded_out_h * sizeof(float));
     }
 
-    int overlap = tile_size / 8;
-    int xtiles = padded_w / tile_size;
-    int ytiles = padded_h / tile_size;
+    ncnn::Extractor ex = net.create_extractor();
+    const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
+    const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
 
-    ncnn::Mat alpha;
-    {
-        alpha.create(tile_size, tile_size, 1);
-        alpha.fill(1.f);
+    int numTiles = numX * numY;
+    int currentTile = 0;
 
-        for (int i = 0; i < overlap; i++) {
-            float a = (float)(i + 1) / (float)(overlap + 1);
-
-            for (int j = 0; j < tile_size; j++) {
-                alpha.row(j)[i] *= a;
-                alpha.row(j)[tile_size - 1 - i] *= a;
-                alpha.row(i)[j] *= a;
-                alpha.row(tile_size - 1 - i)[j] *= a;
+    for (int xi = 0; xi < numX; xi++) {
+        for (int yi = 0; yi < numY; yi++) {
+            if (!is_valid.load(std::memory_order_acquire)) {
+                LOGE("Wrapper invalidated during tiling, aborting");
+                return false;
             }
-        }
-    }
 
-    for (int yi = 0; yi < ytiles; yi++) {
-        for (int xi = 0; xi < xtiles; xi++) {
-            int x0 = xi * tile_size;
-            int y0 = yi * tile_size;
+            int x1 = locsX[xi];
+            int y1 = locsY[yi];
 
             ncnn::Mat in_tile(tile_size, tile_size, 3);
             for (int c = 0; c < 3; c++) {
                 for (int y = 0; y < tile_size; y++) {
-                    const float* src_row = static_cast<const float*>(padded_in.channel(c).row(y0 + y));
+                    const float* src_row = static_cast<const float*>(padded_in.channel(c).row(y1 + y));
                     float* dst_row = static_cast<float*>(in_tile.channel(c).row(y));
-                    memcpy(dst_row, src_row + x0, tile_size * sizeof(float));
+                    memcpy(dst_row, src_row + x1, tile_size * sizeof(float));
                 }
             }
 
             ncnn::Mat out_tile;
-            ncnn::Extractor ex = net.create_extractor();
-            const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
-            const char* output_blob = (modelType == "realcugan") ? "out0" : "output";
             ex.input(input_blob, in_tile);
-            ex.extract(output_blob, out_tile);
+            int ret = ex.extract(output_blob, out_tile);
 
-            if (out_tile.empty()) {
-                LOGE("Inference failed for tile (%d,%d)", xi, yi);
+            if (ret != 0 || out_tile.empty()) {
+                LOGE("Inference failed for tile (%d,%d), ret=%d", xi, yi, ret);
                 return false;
             }
 
-            int out_x0 = x0 * scale;
-            int out_y0 = y0 * scale;
-            int out_tile_w = tile_size * scale;
-            int out_tile_h = tile_size * scale;
+            int out_x1 = (x1 + padLeft[xi]) * scale;
+            int out_y1 = (y1 + padTop[yi]) * scale;
+            int out_valid_w = (tile_size - padLeft[xi] - padRight[xi]) * scale;
+            int out_valid_h = (tile_size - padTop[yi] - padBottom[yi]) * scale;
 
             for (int c = 0; c < 3; c++) {
-                for (int sy = 0; sy < out_tile_h; sy++) {
-                    int dy = out_y0 + sy;
-                    if (dy >= padded_out_h) continue;
+                for (int sy = 0; sy < out_valid_h; sy++) {
+                    int dst_y = out_y1 + sy;
+                    if (dst_y >= padded_out_h) continue;
+                    const float* src_row = static_cast<const float*>(out_tile.channel(c).row(padTop[yi] * scale + sy));
+                    float* dst_row = static_cast<float*>(padded_out.channel(c).row(dst_y));
 
-                    const float* src_row = static_cast<const float*>(out_tile.channel(c).row(sy));
-                    float* dst_row = static_cast<float*>(padded_out.channel(c).row(dy));
-
-                    for (int sx = 0; sx < out_tile_w; sx++) {
-                        int dx = out_x0 + sx;
-                        if (dx >= padded_out_w) continue;
-
-                        int alpha_x = sx / scale;
-                        int alpha_y = sy / scale;
-                        float alpha_val = alpha.row(alpha_y)[alpha_x];
-
-                        dst_row[dx] = dst_row[dx] * (1.f - alpha_val) + src_row[sx] * alpha_val;
+                    for (int sx = 0; sx < out_valid_w; sx++) {
+                        int dst_x = out_x1 + sx;
+                        if (dst_x >= padded_out_w) continue;
+                        dst_row[dst_x] = src_row[padLeft[xi] * scale + sx];
                     }
                 }
+            }
+
+            currentTile++;
+            if (currentTile % 10 == 0 || currentTile == numTiles) {
+                LOGI("Tiling progress: %d/%d tiles processed", currentTile, numTiles);
             }
         }
     }
@@ -270,6 +344,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         }
     }
 
-    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d, overlap=%d)", w, h, out_w, out_h, xtiles, ytiles, tile_size, overlap);
+    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d, padded: %dx%d)",
+         w, h, out_w, out_h, numX, numY, tile_size, padded_w, padded_h);
     return true;
 }
