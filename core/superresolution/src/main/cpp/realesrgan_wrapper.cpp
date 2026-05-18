@@ -119,20 +119,15 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
     int out_w = w * scale;
     int out_h = h * scale;
 
-    outimage.create(out_w, out_h, 3);
-    if (outimage.empty()) {
-        LOGE("Failed to create output Mat");
-        return false;
-    }
-
-    for (int c = 0; c < 3; c++) {
-        float* ch_data = static_cast<float*>(outimage.channel(c).data);
-        memset(ch_data, 0, out_w * out_h * sizeof(float));
-    }
-
     int tile_size = tilesize > 0 ? tilesize : 200;
 
     if (w <= tile_size && h <= tile_size) {
+        outimage.create(out_w, out_h, 3);
+        if (outimage.empty()) {
+            LOGE("Failed to create output Mat");
+            return false;
+        }
+
         ncnn::Mat out_tile;
         ncnn::Extractor ex = net.create_extractor();
         const char* input_blob = (modelType == "realcugan") ? "in0" : "data";
@@ -156,9 +151,39 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         return true;
     }
 
+    int pad_w = ((w + tile_size - 1) / tile_size) * tile_size - w;
+    int pad_h = ((h + tile_size - 1) / tile_size) * tile_size - h;
+    int padded_w = w + pad_w;
+    int padded_h = h + pad_h;
+    int padded_out_w = padded_w * scale;
+    int padded_out_h = padded_h * scale;
+
+    ncnn::Mat padded_in(padded_w, padded_h, 3);
+    for (int c = 0; c < 3; c++) {
+        for (int y = 0; y < padded_h; y++) {
+            float* dst_row = static_cast<float*>(padded_in.channel(c).row(y));
+            for (int x = 0; x < padded_w; x++) {
+                int px = std::min(x, w - 1);
+                int py = std::min(y, h - 1);
+                dst_row[x] = static_cast<float*>(inimage.channel(c).row(py))[px];
+            }
+        }
+    }
+
+    ncnn::Mat padded_out(padded_out_w, padded_out_h, 3);
+    if (padded_out.empty()) {
+        LOGE("Failed to create padded output Mat");
+        return false;
+    }
+
+    for (int c = 0; c < 3; c++) {
+        float* ch_data = static_cast<float*>(padded_out.channel(c).data);
+        memset(ch_data, 0, padded_out_w * padded_out_h * sizeof(float));
+    }
+
     int overlap = tile_size / 8;
-    int xtiles = (w + tile_size - 1) / tile_size;
-    int ytiles = (h + tile_size - 1) / tile_size;
+    int xtiles = padded_w / tile_size;
+    int ytiles = padded_h / tile_size;
 
     ncnn::Mat alpha;
     {
@@ -181,29 +206,8 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         for (int xi = 0; xi < xtiles; xi++) {
             int x0 = xi * tile_size;
             int y0 = yi * tile_size;
-            int x1 = std::min(x0 + tile_size, w);
-            int y1 = std::min(y0 + tile_size, h);
 
-            int pad_right = tile_size - (x1 - x0);
-            int pad_bottom = tile_size - (y1 - y0);
-
-            ncnn::Mat in_tile(tile_size, tile_size, 3);
-            for (int c = 0; c < 3; c++) {
-                for (int y = 0; y < tile_size; y++) {
-                    float* dst_row = static_cast<float*>(in_tile.channel(c).row(y));
-                    for (int x = 0; x < tile_size; x++) {
-                        int src_x = x0 + x;
-                        int src_y = y0 + y;
-                        if (src_x < w && src_y < h) {
-                            dst_row[x] = static_cast<float*>(inimage.channel(c).row(src_y))[src_x];
-                        } else {
-                            int px = std::min(src_x, w - 1);
-                            int py = std::min(src_y, h - 1);
-                            dst_row[x] = static_cast<float*>(inimage.channel(c).row(py))[px];
-                        }
-                    }
-                }
-            }
+            ncnn::Mat in_tile = padded_in.row_range(y0, tile_size).col_range(x0, tile_size);
 
             ncnn::Mat out_tile;
             ncnn::Extractor ex = net.create_extractor();
@@ -219,22 +223,20 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
 
             int out_x0 = x0 * scale;
             int out_y0 = y0 * scale;
-            int out_x1 = x1 * scale;
-            int out_y1 = y1 * scale;
             int out_tile_w = tile_size * scale;
             int out_tile_h = tile_size * scale;
 
             for (int c = 0; c < 3; c++) {
                 for (int sy = 0; sy < out_tile_h; sy++) {
                     int dy = out_y0 + sy;
-                    if (dy >= out_h) continue;
+                    if (dy >= padded_out_h) continue;
 
                     const float* src_row = static_cast<const float*>(out_tile.channel(c).row(sy));
-                    float* dst_row = static_cast<float*>(outimage.channel(c).row(dy));
+                    float* dst_row = static_cast<float*>(padded_out.channel(c).row(dy));
 
                     for (int sx = 0; sx < out_tile_w; sx++) {
                         int dx = out_x0 + sx;
-                        if (dx >= out_w) continue;
+                        if (dx >= padded_out_w) continue;
 
                         int alpha_x = sx / scale;
                         int alpha_y = sy / scale;
@@ -244,6 +246,20 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
                     }
                 }
             }
+        }
+    }
+
+    outimage.create(out_w, out_h, 3);
+    if (outimage.empty()) {
+        LOGE("Failed to create output Mat");
+        return false;
+    }
+
+    for (int c = 0; c < 3; c++) {
+        for (int y = 0; y < out_h; y++) {
+            const float* src_row = static_cast<const float*>(padded_out.channel(c).row(y));
+            float* dst_row = static_cast<float*>(outimage.channel(c).row(y));
+            memcpy(dst_row, src_row, out_w * sizeof(float));
         }
     }
 
