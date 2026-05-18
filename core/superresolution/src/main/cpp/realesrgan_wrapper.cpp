@@ -156,12 +156,10 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         return true;
     }
 
-    // Official NCNN alpha mask approach
     int overlap = tile_size / 8;
     int xtiles = (w + tile_size - 1) / tile_size;
     int ytiles = (h + tile_size - 1) / tile_size;
 
-    // Pre-compute alpha mask
     ncnn::Mat alpha;
     {
         alpha.create(tile_size, tile_size, 1);
@@ -185,15 +183,25 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             int y0 = yi * tile_size;
             int x1 = std::min(x0 + tile_size, w);
             int y1 = std::min(y0 + tile_size, h);
-            int tw = x1 - x0;
-            int th = y1 - y0;
 
-            ncnn::Mat in_tile(tw, th, 3);
+            int pad_right = tile_size - (x1 - x0);
+            int pad_bottom = tile_size - (y1 - y0);
+
+            ncnn::Mat in_tile(tile_size, tile_size, 3);
             for (int c = 0; c < 3; c++) {
-                for (int y = 0; y < th; y++) {
-                    const float* src_row = static_cast<const float*>(inimage.channel(c).row(y0 + y));
+                for (int y = 0; y < tile_size; y++) {
                     float* dst_row = static_cast<float*>(in_tile.channel(c).row(y));
-                    memcpy(dst_row, src_row + x0, tw * sizeof(float));
+                    for (int x = 0; x < tile_size; x++) {
+                        int src_x = x0 + x;
+                        int src_y = y0 + y;
+                        if (src_x < w && src_y < h) {
+                            dst_row[x] = static_cast<float*>(inimage.channel(c).row(src_y))[src_x];
+                        } else {
+                            int px = std::min(src_x, w - 1);
+                            int py = std::min(src_y, h - 1);
+                            dst_row[x] = static_cast<float*>(inimage.channel(c).row(py))[px];
+                        }
+                    }
                 }
             }
 
@@ -213,28 +221,26 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             int out_y0 = y0 * scale;
             int out_x1 = x1 * scale;
             int out_y1 = y1 * scale;
-            int out_tw = out_tile.w;
-            int out_th = out_tile.h;
+            int out_tile_w = tile_size * scale;
+            int out_tile_h = tile_size * scale;
 
             for (int c = 0; c < 3; c++) {
-                for (int sy = 0; sy < out_th; sy++) {
+                for (int sy = 0; sy < out_tile_h; sy++) {
                     int dy = out_y0 + sy;
-                    if (dy >= out_h) break;
+                    if (dy >= out_h) continue;
 
                     const float* src_row = static_cast<const float*>(out_tile.channel(c).row(sy));
                     float* dst_row = static_cast<float*>(outimage.channel(c).row(dy));
 
-                    for (int sx = 0; sx < out_tw; sx++) {
+                    for (int sx = 0; sx < out_tile_w; sx++) {
                         int dx = out_x0 + sx;
-                        if (dx >= out_w) break;
+                        if (dx >= out_w) continue;
 
-                        if (sy < tile_size && sx < tile_size) {
-                            float alpha_val = alpha.row(sy)[sx];
-                            dst_row[dx] = dst_row[dx] * (1.f - alpha_val) + src_row[sx] * alpha_val;
-                        } else {
-                            // For border tiles, just copy
-                            dst_row[dx] = src_row[sx];
-                        }
+                        int alpha_x = sx / scale;
+                        int alpha_y = sy / scale;
+                        float alpha_val = alpha.row(alpha_y)[alpha_x];
+
+                        dst_row[dx] = dst_row[dx] * (1.f - alpha_val) + src_row[sx] * alpha_val;
                     }
                 }
             }
