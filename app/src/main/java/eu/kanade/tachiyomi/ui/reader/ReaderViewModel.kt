@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import logcat.LogPriority
 import mihon.core.superresolution.SRModel
+import mihon.core.superresolution.SRPreloadDispatcher
 import mihon.core.superresolution.SRStatusInfo
 import mihon.core.superresolution.SRStatusViewModel
 import tachiyomi.core.common.preference.toggle
@@ -457,6 +458,14 @@ class ReaderViewModel @JvmOverloads constructor(
             it.copy()
         }
         onCurrentPageChanged(page)
+
+        // 触发 SR 预加载：提前处理后续页面
+        val chapterId = selectedChapter.chapter.id ?: -1L
+        val pageIndex = page.index
+        val totalPages = pages.size
+        if (chapterId >= 0) {
+            Injekt.get<SRPreloadDispatcher>().onPageChanged(chapterId, pageIndex, totalPages)
+        }
 
         viewModelScope.launchNonCancellable {
             updateChapterProgress(selectedChapter, page)

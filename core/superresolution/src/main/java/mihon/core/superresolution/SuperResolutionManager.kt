@@ -5,9 +5,11 @@ import android.graphics.Bitmap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
@@ -171,25 +173,30 @@ class SuperResolutionManager(
 
         withContext(Dispatchers.IO) {
             try {
-                val denoiseStrength = when (currentDenoiseLevel) {
-                    DenoiseLevel.OFF -> 0f
-                    DenoiseLevel.LIGHT -> 0.5f
-                    DenoiseLevel.STRONG -> 1.0f
-                }
-                val result = processor.process(
-                    input, currentScale,
-                    currentDenoiseLevel, denoiseStrength, currentBwConfig,
-                )
-                if (versionAtStart != modelVersion) {
-                    logcat(LogPriority.DEBUG) { "SR: Model switched during inference, discarding result" }
-                    return@withContext input
-                }
-                if (result !== input) {
-                    logcat(LogPriority.INFO) {
-                        "SR: Processed ${input.width}x${input.height} -> ${result.width}x${result.height}"
+                withTimeout(120_000) {
+                    val denoiseStrength = when (currentDenoiseLevel) {
+                        DenoiseLevel.OFF -> 0f
+                        DenoiseLevel.LIGHT -> 0.5f
+                        DenoiseLevel.STRONG -> 1.0f
                     }
+                    val result = processor.process(
+                        input, currentScale,
+                        currentDenoiseLevel, denoiseStrength, currentBwConfig,
+                    )
+                    if (versionAtStart != modelVersion) {
+                        logcat(LogPriority.DEBUG) { "SR: Model switched during inference, discarding result" }
+                        return@withTimeout input
+                    }
+                    if (result !== input) {
+                        logcat(LogPriority.INFO) {
+                            "SR: Processed ${input.width}x${input.height} -> ${result.width}x${result.height}"
+                        }
+                    }
+                    result
                 }
-                result
+            } catch (e: TimeoutCancellationException) {
+                logcat(LogPriority.WARN) { "SR: Processing timed out after 120s" }
+                input
             } catch (e: CancellationException) {
                 logcat(LogPriority.DEBUG) { "SR: Processing cancelled" }
                 input

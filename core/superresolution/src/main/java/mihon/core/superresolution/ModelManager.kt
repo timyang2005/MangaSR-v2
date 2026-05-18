@@ -6,10 +6,23 @@ import logcat.asLog
 import logcat.logcat
 import java.io.File
 
-class ModelManager(
+class ModelManager private constructor(
     private val context: Context,
 ) {
-    private val modelsDir = File(context.filesDir, "models")
+    companion object {
+        @Volatile
+        private var instance: ModelManager? = null
+
+        fun getInstance(context: Context): ModelManager {
+            return instance ?: synchronized(this) {
+                instance ?: ModelManager(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
+    private val modelsDir by lazy {
+        File(context.filesDir, "models").also { it.mkdirs() }
+    }
 
     fun getModelDir(model: SRModel): File {
         return File(modelsDir, model.modelDirName)
@@ -24,10 +37,7 @@ class ModelManager(
     }
 
     fun ensureModelsExtracted() {
-        val modelsDir = File(context.filesDir, "models")
-        if (!modelsDir.exists()) {
-            modelsDir.mkdirs()
-        }
+        // modelsDir 通过 lazy 延迟初始化，目录在首次访问时由 also { it.mkdirs() } 创建
         SRModel.entries.filter { it.isBuiltIn }.forEach { model ->
             val modelDir = File(modelsDir, model.modelDirName)
             if (!modelDir.exists() || !isModelReady(model)) {

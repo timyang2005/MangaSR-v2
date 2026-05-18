@@ -19,15 +19,9 @@ local.properties
 .gitignore)
 
 # Temp / debug files
+*.txt
 *.ps1
-gh_token.txt
-commit_msg.txt
-build_log.txt
-ci_logs.txt
-ci_logs2.txt
-msg_fix.txt
-temp_commit_msg.txt
-tmp_msg.txt
+ci_logs/
 
 # NDK runtime libs (copied during CI build)
 core/superresolution/src/main/jniLibs/

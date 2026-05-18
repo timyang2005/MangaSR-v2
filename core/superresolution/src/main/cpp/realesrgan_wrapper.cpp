@@ -143,7 +143,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         memset(ch_data, 0, out_w * out_h * sizeof(float));
     }
 
-    std::vector<uint16_t> weight_sum(out_w * out_h, 0);
+    std::vector<uint32_t> weight_sum(out_w * out_h, 0);
 
     int tile_size = tilesize > 0 ? tilesize : 200;
     int min_overlap = 12;
@@ -313,7 +313,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
 
                         dst_row[dx] += src_row[sx] * wt;
                         if (c == 0) {
-                            weight_sum[out_idx] += static_cast<uint16_t>(wt * 256 + 0.5f);
+                            weight_sum[out_idx] += static_cast<uint32_t>(wt * 256 + 0.5f);
                         }
                     }
                 }
@@ -325,7 +325,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         for (int y = 0; y < out_h; y++) {
             float* dst_row = static_cast<float*>(outimage.channel(c).row(y));
             for (int x = 0; x < out_w; x++) {
-                uint16_t ws = weight_sum[y * out_w + x];
+                uint32_t ws = weight_sum[y * out_w + x];
                 if (ws > 0) {
                     dst_row[x] = dst_row[x] * 256.0f / static_cast<float>(ws);
                 }

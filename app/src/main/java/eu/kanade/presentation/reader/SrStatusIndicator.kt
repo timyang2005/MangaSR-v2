@@ -46,18 +46,6 @@ fun SRStatusIndicator(
         SRStatus.IDLE -> Icons.Default.Image
     }
 
-    val labelText = when (statusInfo.status) {
-        SRStatus.PROCESSING -> {
-            val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
-            seconds
-        }
-        SRStatus.DONE -> {
-            val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
-            seconds
-        }
-        SRStatus.IDLE -> "SR"
-    }
-
     val alignment = position.toAlignment()
 
     val paddingModifier = when (position) {
@@ -86,6 +74,17 @@ fun SRStatusIndicator(
                 modifier = Modifier.size(14.dp),
             )
             if (displayMode == SRIndicatorDisplayMode.ICON_AND_TEXT) {
+                val labelText = when (statusInfo.status) {
+                    SRStatus.PROCESSING -> {
+                        val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
+                        seconds
+                    }
+                    SRStatus.DONE -> {
+                        val seconds = statusInfo.elapsedMs?.let { " %.1fs".format(it / 1000.0) } ?: "SR"
+                        seconds
+                    }
+                    SRStatus.IDLE -> "SR"
+                }
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = labelText,

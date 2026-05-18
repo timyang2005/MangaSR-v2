@@ -19,6 +19,8 @@ class SRPreloadDispatcher(
     private val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
     private val preloadingPages = mutableSetOf<String>()
 
+    var onPreloadRequested: ((chapterId: Long, pageIndex: Int) -> Unit)? = null
+
     fun onPageChanged(chapterId: Long, currentPageIndex: Int, totalPages: Int) {
         if (!manager.isReady) return
 
@@ -37,6 +39,7 @@ class SRPreloadDispatcher(
 
             scope.launch {
                 try {
+                    onPreloadRequested?.invoke(chapterId, pageIndex)
                     logcat(LogPriority.DEBUG) { "SR: Preloading ch$chapterId p$pageIndex" }
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR) { "SR: Preload failed ch$chapterId p$pageIndex: ${e.message}" }

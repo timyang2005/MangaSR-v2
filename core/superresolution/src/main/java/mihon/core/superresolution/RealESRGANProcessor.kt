@@ -53,10 +53,6 @@ class RealESRGANProcessor(
         handle = 0L
     }
 
-    protected fun finalize() {
-        release()
-    }
-
     private external fun nativeInit(paramPath: String, binPath: String, gpuid: Int, modelType: String, useFp16: Boolean, scale: Int): Long
     private external fun nativeProcess(
         handle: Long, input: Bitmap, scale: Int,

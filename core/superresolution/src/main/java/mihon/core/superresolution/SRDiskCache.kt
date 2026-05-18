@@ -55,13 +55,17 @@ class SRDiskCache(
     }
 
     private fun evictIfNeeded() {
-        val files = cacheDir.listFiles()?.sortedBy { it.lastModified() } ?: return
+        val files = cacheDir.listFiles() ?: return
+        // TODO: Add async evict option to avoid blocking the caller thread
         var totalSize = files.sumOf { it.length() }
-        var index = 0
-        while (totalSize > maxCacheSizeBytes && index < files.size) {
+        if (totalSize <= maxCacheSizeBytes) return
+        // Sort by lastModified descending (newest first), keep newest and only delete from the end (oldest)
+        files.sortByDescending { it.lastModified() }
+        var index = files.size - 1
+        while (totalSize > maxCacheSizeBytes && index >= 0) {
             totalSize -= files[index].length()
             files[index].delete()
-            index++
+            index--
         }
     }
 }

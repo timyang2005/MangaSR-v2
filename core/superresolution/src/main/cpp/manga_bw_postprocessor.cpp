@@ -67,6 +67,16 @@ static int computeOtsuThreshold(const unsigned char* gray_data, int width, int h
     return threshold;
 }
 
+static void applyThreshold(unsigned char* rgba_data, int pixel_count, int thresh) {
+    for (int i = 0; i < pixel_count; i++) {
+        unsigned char gray = toGrayInt(rgba_data[i * 4 + 0], rgba_data[i * 4 + 1], rgba_data[i * 4 + 2]);
+        unsigned char val = (gray > thresh) ? 255 : 0;
+        rgba_data[i * 4 + 0] = val;
+        rgba_data[i * 4 + 1] = val;
+        rgba_data[i * 4 + 2] = val;
+    }
+}
+
 void binarizeEnhance(unsigned char* rgba_data, int width, int height, int threshold) {
     int pixel_count = width * height;
     int thresh = threshold;
@@ -77,20 +87,9 @@ void binarizeEnhance(unsigned char* rgba_data, int width, int height, int thresh
             gray[i] = toGrayInt(rgba_data[i * 4 + 0], rgba_data[i * 4 + 1], rgba_data[i * 4 + 2]);
         }
         thresh = computeOtsuThreshold(gray.data(), width, height);
-        for (int i = 0; i < pixel_count; i++) {
-            unsigned char val = (gray[i] > thresh) ? 255 : 0;
-            rgba_data[i * 4 + 0] = val;
-            rgba_data[i * 4 + 1] = val;
-            rgba_data[i * 4 + 2] = val;
-        }
+        applyThreshold(rgba_data, pixel_count, thresh);
     } else {
-        for (int i = 0; i < pixel_count; i++) {
-            unsigned char gray = toGrayInt(rgba_data[i * 4 + 0], rgba_data[i * 4 + 1], rgba_data[i * 4 + 2]);
-            unsigned char val = (gray > thresh) ? 255 : 0;
-            rgba_data[i * 4 + 0] = val;
-            rgba_data[i * 4 + 1] = val;
-            rgba_data[i * 4 + 2] = val;
-        }
+        applyThreshold(rgba_data, pixel_count, thresh);
     }
 }
 
