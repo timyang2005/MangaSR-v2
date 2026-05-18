@@ -154,13 +154,14 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info 2>&1 | tee build.log
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info --stacktrace 2>&1 | tee build.log
           BUILD_EXIT=${PIPESTATUS[0]}
           
-          echo "=== Build output ==="
-          tail -500 build.log
-          
           if [ $BUILD_EXIT -ne 0 ]; then
+            echo "=== FAILED - Searching for errors ==="
+            grep -n -i "FAILED\|error:\|Error:\|FAILURE\|exception\|cannot find\|undefined\|no member" build.log | tail -100 || true
+            echo "=== Last 200 lines ==="
+            tail -200 build.log
             echo "::error::Build failed with exit code $BUILD_EXIT"
             exit $BUILD_EXIT
           fi
