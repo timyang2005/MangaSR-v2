@@ -12,34 +12,19 @@
 int RealESRGANWrapper::calculateOptimalTileSize() {
     uint32_t available_mb = 0;
 
-    if (gpuid >= 0 && ncnn::get_gpu_count() > gpuid) {
-        uint32_t heap_budget_mb = ncnn::get_gpu_info(gpuid).heap_budget();
-        LOGI("GPU heap_budget: %u MB", heap_budget_mb);
-
-        long page_size = sysconf(_SC_PAGESIZE);
-        long phys_pages = sysconf(_SC_PHYS_PAGES);
-        uint32_t total_ram_mb = 0;
-        if (page_size > 0 && phys_pages > 0) {
-            total_ram_mb = static_cast<uint32_t>(
-                (static_cast<long long>(phys_pages) * page_size) / (1024LL * 1024LL)
-            );
-        }
-        LOGI("Total RAM: %u MB", total_ram_mb);
-
-        uint32_t safe_ram_mb = total_ram_mb / 5;
-        available_mb = std::min(heap_budget_mb, safe_ram_mb);
-        LOGI("Effective available (min of GPU budget and RAM/5): %u MB", available_mb);
-    } else {
-        long page_size = sysconf(_SC_PAGESIZE);
-        long phys_pages = sysconf(_SC_PHYS_PAGES);
-        if (page_size > 0 && phys_pages > 0) {
-            available_mb = static_cast<uint32_t>(
-                (static_cast<long long>(phys_pages) * page_size) / (1024LL * 1024LL)
-            );
-        }
-        available_mb = available_mb / 5;
-        LOGI("CPU mode, total RAM/5: %u MB", available_mb);
+    long page_size = sysconf(_SC_PAGESIZE);
+    long phys_pages = sysconf(_SC_PHYS_PAGES);
+    uint32_t total_ram_mb = 0;
+    if (page_size > 0 && phys_pages > 0) {
+        total_ram_mb = static_cast<uint32_t>(
+            (static_cast<long long>(phys_pages) * page_size) / (1024LL * 1024LL)
+        );
     }
+    LOGI("Total RAM: %u MB", total_ram_mb);
+
+    uint32_t safe_ram_mb = total_ram_mb / 5;
+    available_mb = safe_ram_mb;
+    LOGI("Effective available (RAM/5): %u MB", available_mb);
 
     int optimal;
     if (available_mb >= 2500) {
