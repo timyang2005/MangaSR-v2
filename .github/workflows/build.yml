@@ -154,15 +154,18 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info --stacktrace 2>&1 | tee build.log
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --stacktrace 2>&1 | tee build.log
           BUILD_EXIT=${PIPESTATUS[0]}
           
           if [ $BUILD_EXIT -ne 0 ]; then
-            echo "=== FAILED - Searching for errors ==="
-            grep -n -i "FAILED\|error:\|Error:\|FAILURE\|exception\|cannot find\|undefined\|no member" build.log | tail -100 || true
-            echo "=== Last 200 lines ==="
-            tail -200 build.log
-            echo "::error::Build failed with exit code $BUILD_EXIT"
+            echo "=== FAILED - Extracting key errors ==="
+            grep -n -i "FAILED\|error:\|Error:\|FAILURE\|exception\|cannot find\|undefined\|no member\|e:" build.log | grep -v "^.*:.*warning:" | tail -50 || true
+            echo "=== Last 100 lines ==="
+            tail -100 build.log
+            
+            ERROR_SUMMARY=$(grep -i "error:" build.log | head -10 | while read line; do echo "::error::$line"; done)
+            echo "$ERROR_SUMMARY"
+            
             exit $BUILD_EXIT
           fi
       
