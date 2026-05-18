@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.ui.reader.model
 
 import android.graphics.Bitmap
 import eu.kanade.tachiyomi.source.model.Page
+import mihon.core.superresolution.SRModel
+import mihon.core.superresolution.SRStatus
 import java.io.InputStream
 
 open class ReaderPage(
@@ -15,4 +17,16 @@ open class ReaderPage(
 
     @Volatile
     var srBitmap: Bitmap? = null
+
+    @Volatile
+    var srStatus: SRStatus = SRStatus.IDLE
+
+    @Volatile
+    var srStartTime: Long? = null
+
+    @Volatile
+    var srElapsed: Long? = null
+
+    @Volatile
+    var srModel: SRModel? = null
 }

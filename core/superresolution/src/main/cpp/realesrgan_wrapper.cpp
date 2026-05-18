@@ -58,6 +58,10 @@ int RealESRGANWrapper::calculateOptimalTileSize() {
     return optimal;
 }
 
+void RealESRGANWrapper::markInvalid() {
+    is_valid.store(false, std::memory_order_release);
+}
+
 bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int gpu_id, const char* model_type, int initial_scale) {
     gpuid = gpu_id;
     modelType = model_type ? model_type : "realesrgan";
@@ -93,14 +97,12 @@ bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int
     return true;
 }
 
-static inline float blendWeight(int pos, int fade_size) {
-    if (fade_size <= 0) return 1.0f;
-    if (pos < 0) return 0.0f;
-    if (pos >= fade_size) return 1.0f;
-    return static_cast<float>(pos) / static_cast<float>(fade_size);
-}
-
 bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
+    if (!is_valid.load(std::memory_order_acquire)) {
+        LOGE("Wrapper invalid, cannot process");
+        return false;
+    }
+
     if (!loaded) {
         LOGE("Model not loaded");
         return false;
@@ -128,10 +130,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         memset(ch_data, 0, out_w * out_h * sizeof(float));
     }
 
-    std::vector<uint32_t> weight_sum(out_w * out_h, 0);
-
     int tile_size = tilesize > 0 ? tilesize : 200;
-    int min_overlap = 12;
 
     if (w <= tile_size && h <= tile_size) {
         ncnn::Mat out_tile;
@@ -157,75 +156,44 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         return true;
     }
 
-    int numX = 2;
-    int maxTiles = (w / std::max(1, tile_size / 2)) + 2;
-    while (numX <= maxTiles) {
-        int overlap = (tile_size * numX - w) / (numX - 1);
-        if (overlap >= min_overlap) break;
-        numX++;
-    }
-    if (numX > maxTiles) numX = maxTiles;
+    // Official NCNN alpha mask approach
+    int overlap = tile_size / 8;
+    int xtiles = (w + tile_size - 1) / tile_size;
+    int ytiles = (h + tile_size - 1) / tile_size;
 
-    int numY = 2;
-    int maxTilesY = (h / std::max(1, tile_size / 2)) + 2;
-    while (numY <= maxTilesY) {
-        int overlap = (tile_size * numY - h) / (numY - 1);
-        if (overlap >= min_overlap) break;
-        numY++;
-    }
-    if (numY > maxTilesY) numY = maxTilesY;
+    // Pre-compute alpha mask
+    ncnn::Mat alpha;
+    {
+        alpha.create(tile_size, tile_size, 1);
+        alpha.fill(1.f);
 
-    int totalLapX = tile_size * numX - w;
-    int totalLapY = tile_size * numY - h;
-    int baseLapX = totalLapX / (numX - 1);
-    int baseLapY = totalLapY / (numY - 1);
-    int extraLapX = totalLapX - baseLapX * (numX - 1);
-    int extraLapY = totalLapY - baseLapY * (numY - 1);
+        for (int i = 0; i < overlap; i++) {
+            float a = (float)(i + 1) / (float)(overlap + 1);
 
-    std::vector<int> locsX(numX), locsY(numY);
-    std::vector<int> padLeft(numX), padTop(numY), padRight(numX), padBottom(numY);
-
-    locsX[0] = 0;
-    for (int i = 1; i < numX; i++) {
-        locsX[i] = locsX[i - 1] + tile_size - baseLapX - (i <= extraLapX ? 1 : 0);
-    }
-    locsY[0] = 0;
-    for (int i = 1; i < numY; i++) {
-        locsY[i] = locsY[i - 1] + tile_size - baseLapY - (i <= extraLapY ? 1 : 0);
+            for (int j = 0; j < tile_size; j++) {
+                alpha.row(j)[i] *= a;
+                alpha.row(j)[tile_size - 1 - i] *= a;
+                alpha.row(i)[j] *= a;
+                alpha.row(tile_size - 1 - i)[j] *= a;
+            }
+        }
     }
 
-    padLeft[0] = 0;
-    padTop[0] = 0;
-    padRight[numX - 1] = 0;
-    padBottom[numY - 1] = 0;
-    for (int i = 1; i < numX; i++) {
-        padLeft[i] = (locsX[i - 1] + tile_size - locsX[i]) / 2;
-    }
-    for (int i = 1; i < numY; i++) {
-        padTop[i] = (locsY[i - 1] + tile_size - locsY[i]) / 2;
-    }
-    for (int i = 0; i < numX - 1; i++) {
-        padRight[i] = locsX[i] + tile_size - locsX[i + 1] - padLeft[i + 1];
-    }
-    for (int i = 0; i < numY - 1; i++) {
-        padBottom[i] = locsY[i] + tile_size - locsY[i + 1] - padTop[i + 1];
-    }
-
-    for (int yi = 0; yi < numY; yi++) {
-        for (int xi = 0; xi < numX; xi++) {
-            int x1 = locsX[xi];
-            int y1 = locsY[yi];
-            int x2 = std::min(x1 + tile_size, w);
-            int y2 = std::min(y1 + tile_size, h);
-            int tw = x2 - x1;
-            int th = y2 - y1;
+    for (int yi = 0; yi < ytiles; yi++) {
+        for (int xi = 0; xi < xtiles; xi++) {
+            int x0 = xi * tile_size;
+            int y0 = yi * tile_size;
+            int x1 = std::min(x0 + tile_size, w);
+            int y1 = std::min(y0 + tile_size, h);
+            int tw = x1 - x0;
+            int th = y1 - y0;
 
             ncnn::Mat in_tile(tw, th, 3);
             for (int c = 0; c < 3; c++) {
                 for (int y = 0; y < th; y++) {
-                    const float* src_row = static_cast<const float*>(inimage.channel(c).row(y1 + y));
+                    const float* src_row = static_cast<const float*>(inimage.channel(c).row(y0 + y));
                     float* dst_row = static_cast<float*>(in_tile.channel(c).row(y));
-                    memcpy(dst_row, src_row + x1, tw * sizeof(float));
+                    memcpy(dst_row, src_row + x0, tw * sizeof(float));
                 }
             }
 
@@ -241,64 +209,31 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
                 return false;
             }
 
-            int crop_left = padLeft[xi] * scale;
-            int crop_top = padTop[yi] * scale;
-            int crop_right = padRight[xi] * scale;
-            int crop_bottom = padBottom[yi] * scale;
-
-            int out_tile_w = out_tile.w;
-            int out_tile_h = out_tile.h;
-
-            int src_start_x = crop_left;
-            int src_start_y = crop_top;
-            int src_end_x = out_tile_w - crop_right;
-            int src_end_y = out_tile_h - crop_bottom;
-
-            int dst_start_x = (x1 + padLeft[xi]) * scale;
-            int dst_start_y = (y1 + padTop[yi]) * scale;
-
-            int fade_x = padLeft[xi] * scale;
-            int fade_y = padTop[yi] * scale;
-            int fade_rx = padRight[xi] * scale;
-            int fade_by = padBottom[yi] * scale;
+            int out_x0 = x0 * scale;
+            int out_y0 = y0 * scale;
+            int out_x1 = x1 * scale;
+            int out_y1 = y1 * scale;
+            int out_tw = out_tile.w;
+            int out_th = out_tile.h;
 
             for (int c = 0; c < 3; c++) {
-                for (int sy = src_start_y; sy < src_end_y; sy++) {
-                    int dy = dst_start_y + (sy - src_start_y);
+                for (int sy = 0; sy < out_th; sy++) {
+                    int dy = out_y0 + sy;
                     if (dy >= out_h) break;
 
                     const float* src_row = static_cast<const float*>(out_tile.channel(c).row(sy));
                     float* dst_row = static_cast<float*>(outimage.channel(c).row(dy));
 
-                    for (int sx = src_start_x; sx < src_end_x; sx++) {
-                        int dx = dst_start_x + (sx - src_start_x);
+                    for (int sx = 0; sx < out_tw; sx++) {
+                        int dx = out_x0 + sx;
                         if (dx >= out_w) break;
 
-                        int local_x = sx - src_start_x;
-                        int local_y = sy - src_start_y;
-                        int region_w = src_end_x - src_start_x;
-                        int region_h = src_end_y - src_start_y;
-
-                        float w_x = 1.0f;
-                        if (fade_x > 0 && local_x < fade_x) {
-                            w_x = blendWeight(local_x, fade_x);
-                        } else if (fade_rx > 0 && local_x >= region_w - fade_rx) {
-                            w_x = blendWeight(region_w - 1 - local_x, fade_rx);
-                        }
-
-                        float w_y = 1.0f;
-                        if (fade_y > 0 && local_y < fade_y) {
-                            w_y = blendWeight(local_y, fade_y);
-                        } else if (fade_by > 0 && local_y >= region_h - fade_by) {
-                            w_y = blendWeight(region_h - 1 - local_y, fade_by);
-                        }
-
-                        float wt = w_x * w_y;
-                        int out_idx = dy * out_w + dx;
-
-                        dst_row[dx] += src_row[sx] * wt;
-                        if (c == 0) {
-                            weight_sum[out_idx] += static_cast<uint32_t>(wt * 256 + 0.5f);
+                        if (sy < tile_size && sx < tile_size) {
+                            float alpha_val = alpha.row(sy)[sx];
+                            dst_row[dx] = dst_row[dx] * (1.f - alpha_val) + src_row[sx] * alpha_val;
+                        } else {
+                            // For border tiles, just copy
+                            dst_row[dx] = src_row[sx];
                         }
                     }
                 }
@@ -306,18 +241,6 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         }
     }
 
-    for (int c = 0; c < 3; c++) {
-        for (int y = 0; y < out_h; y++) {
-            float* dst_row = static_cast<float*>(outimage.channel(c).row(y));
-            for (int x = 0; x < out_w; x++) {
-                uint32_t ws = weight_sum[y * out_w + x];
-                if (ws > 0) {
-                    dst_row[x] = dst_row[x] * 256.0f / static_cast<float>(ws);
-                }
-            }
-        }
-    }
-
-    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d)", w, h, out_w, out_h, numX, numY, tile_size);
+    LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d, overlap=%d)", w, h, out_w, out_h, xtiles, ytiles, tile_size, overlap);
     return true;
 }

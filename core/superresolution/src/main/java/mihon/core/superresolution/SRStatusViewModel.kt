@@ -19,6 +19,16 @@ class SRStatusViewModel : ViewModel() {
         )
     }
 
+    fun onSRStartWithStartTime(chapterId: Long, pageIndex: Int, model: SRModel, startTimeMs: Long) {
+        _srStatus.value = SRStatusInfo(
+            status = SRStatus.PROCESSING,
+            pageIndex = pageIndex,
+            chapterId = chapterId,
+            model = model,
+            startTimeMs = startTimeMs
+        )
+    }
+
     fun onSRDone(chapterId: Long, pageIndex: Int, model: SRModel, elapsedMs: Long) {
         _srStatus.value = SRStatusInfo(
             status = SRStatus.DONE,

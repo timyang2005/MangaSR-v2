@@ -784,29 +784,35 @@ class ReaderViewModel @JvmOverloads constructor(
         return page.srBitmap
     }
 
-    private var currentSrStartTime: Long? = null
-
     fun onSrStatusChanged(page: ReaderPage, completed: Boolean) {
         val currentPage = state.value.currentChapter?.pages?.getOrNull(state.value.currentPage - 1)
-        if (currentPage == page) {
-            // 更新 sr 状态，只有当是当前页面时才更新
-            if (completed) {
-                // sr 完成，计算经过时间并停止计时器
-                val elapsed = currentSrStartTime?.let { System.currentTimeMillis() - it } ?: 0L
+        
+        if (completed) {
+            // sr 完成
+            val elapsed = page.srStartTime?.let { System.currentTimeMillis() - it } ?: 0L
+            page.srStatus = SRStatus.DONE
+            page.srElapsed = elapsed
+            
+            if (currentPage == page) {
                 srStatusViewModel.onSRDone(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
                     elapsedMs = elapsed
                 )
                 stopTimer()
-            } else {
-                // sr 开始，启动计时器
-                currentSrStartTime = System.currentTimeMillis()
+            }
+        } else {
+            // sr 开始
+            page.srStatus = SRStatus.PROCESSING
+            page.srStartTime = System.currentTimeMillis()
+            page.srModel = SRModel.REALCUGAN_2X_CONSERVATIVE
+            
+            if (currentPage == page) {
                 srStatusViewModel.onSRStart(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = SRModel.REALCUGAN_2X_CONSERVATIVE
+                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
                 )
                 startTimer()
             }
@@ -815,33 +821,70 @@ class ReaderViewModel @JvmOverloads constructor(
 
     // 当页面切换时，设置对应 sr 状态
     fun onCurrentPageChanged(page: ReaderPage?) {
-        if (page?.srBitmap != null) {
-            // 页面已经有 sr 图
-            srStatusViewModel.onSRDone(
-                chapterId = page.chapter.chapter.id ?: -1L,
-                pageIndex = page.index,
-                model = SRModel.REALCUGAN_2X_CONSERVATIVE,
-                elapsedMs = 0
-            )
-        } else if (page != null) {
-            // 没有 sr 图，检查是否正在处理
-            // 目前没有简单方式知道，所以先设为 IDLE
+        if (page == null) {
             srStatusViewModel.onSRIdle()
-        } else {
-            srStatusViewModel.onSRIdle()
+            return
+        }
+
+        when (page.srStatus) {
+            SRStatus.DONE -> {
+                srStatusViewModel.onSRDone(
+                    chapterId = page.chapter.chapter.id ?: -1L,
+                    pageIndex = page.index,
+                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    elapsedMs = page.srElapsed ?: 0L
+                )
+                stopTimer()
+            }
+            SRStatus.PROCESSING -> {
+                page.srStartTime?.let { startTime ->
+                    srStatusViewModel.onSRStartWithStartTime(
+                        chapterId = page.chapter.chapter.id ?: -1L,
+                        pageIndex = page.index,
+                        model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
+                        startTimeMs = startTime
+                    )
+                } ?: srStatusViewModel.onSRStart(
+                    chapterId = page.chapter.chapter.id ?: -1L,
+                    pageIndex = page.index,
+                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
+                )
+                startTimer()
+            }
+            else -> {
+                srStatusViewModel.onSRIdle()
+            }
         }
     }
 
     fun clearAllSrBitmaps() {
         state.value.viewerChapters?.let { chapters ->
             chapters.currChapter?.pages?.forEach { page ->
-                if (page is ReaderPage) page.srBitmap = null
+                if (page is ReaderPage) {
+                    page.srBitmap = null
+                    page.srStatus = SRStatus.IDLE
+                    page.srStartTime = null
+                    page.srElapsed = null
+                    page.srModel = null
+                }
             }
             chapters.prevChapter?.pages?.forEach { page ->
-                if (page is ReaderPage) page.srBitmap = null
+                if (page is ReaderPage) {
+                    page.srBitmap = null
+                    page.srStatus = SRStatus.IDLE
+                    page.srStartTime = null
+                    page.srElapsed = null
+                    page.srModel = null
+                }
             }
             chapters.nextChapter?.pages?.forEach { page ->
-                if (page is ReaderPage) page.srBitmap = null
+                if (page is ReaderPage) {
+                    page.srBitmap = null
+                    page.srStatus = SRStatus.IDLE
+                    page.srStartTime = null
+                    page.srElapsed = null
+                    page.srModel = null
+                }
             }
         }
         srStatusViewModel.onSRIdle()

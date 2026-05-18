@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <atomic>
 #include <ncnn/net.h>
 
 class RealESRGANWrapper {
@@ -15,8 +16,10 @@ public:
 
     bool load(const char* param_path, const char* model_path, int gpu_id, const char* model_type, int initial_scale);
     bool process(const ncnn::Mat& inimage, ncnn::Mat& outimage);
+    void markInvalid();
 
 private:
     int lastScale = 0;
+    std::atomic<bool> is_valid{true};
     int calculateOptimalTileSize();
 };

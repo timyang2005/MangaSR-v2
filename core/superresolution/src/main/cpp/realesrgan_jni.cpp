@@ -4,6 +4,8 @@
 #include <string>
 #include <cstring>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 #include <ncnn/net.h>
 #include <ncnn/gpu.h>
 
@@ -224,6 +226,9 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeRelease(
 
     if (handle == 0) return;
     auto* wrapper = reinterpret_cast<RealESRGANWrapper*>(handle);
+    wrapper->markInvalid();
+    // 稍等确保正在执行的 process() 检测到 invalid
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     delete wrapper;
     LOGI("RealESRGAN released");
 }
