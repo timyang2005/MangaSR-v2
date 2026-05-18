@@ -146,6 +146,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Fix Gradle wrapper URL for CI
+        run: |
+          sed -i 's|https://mirrors.cloud.tencent.com/gradle/|https://services.gradle.org/distributions/|g' gradle/wrapper/gradle-wrapper.properties
+          echo "Gradle wrapper URL fixed for CI:"
+          cat gradle/wrapper/gradle-wrapper.properties
+
       - name: Build APK
         run: |
           ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info 2>&1 | tee build.log
