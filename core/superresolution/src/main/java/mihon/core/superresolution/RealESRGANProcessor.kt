@@ -22,7 +22,7 @@ class RealESRGANProcessor(
         if (handle != 0L) release()
         val paramPath = "$modelPath/${model.modelDirName}.param"
         val binPath = "$modelPath/${model.modelDirName}.bin"
-        handle = nativeInit(paramPath, binPath, gpuid, model.modelType)
+        handle = nativeInit(paramPath, binPath, gpuid, model.modelType, true)
         logcat(LogPriority.INFO) { "RealESRGAN initialized: model=${model.key}, handle=$handle" }
     }
 
@@ -57,7 +57,7 @@ class RealESRGANProcessor(
         release()
     }
 
-    private external fun nativeInit(paramPath: String, binPath: String, gpuid: Int, modelType: String): Long
+    private external fun nativeInit(paramPath: String, binPath: String, gpuid: Int, modelType: String, useFp16: Boolean): Long
     private external fun nativeProcess(
         handle: Long, input: Bitmap, scale: Int,
         denoiseStrength: Float, grayLevels: Int, densityCorrection: Boolean,

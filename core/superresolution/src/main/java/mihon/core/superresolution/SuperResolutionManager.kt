@@ -12,14 +12,20 @@ import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
 
 class SuperResolutionManager(
     private val context: Context,
 ) {
     private val mutex = Mutex()
 
-    private val srCache = ConcurrentHashMap<String, Bitmap>()
+    private val maxCacheSize = 32
+
+    private val srCache = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>): Boolean {
+            return size > maxCacheSize
+        }
+    }
 
     private var currentProcessor: SuperResolutionProcessor? = null
     private var currentModel: SRModel? = null
@@ -55,16 +61,20 @@ class SuperResolutionManager(
         VulkanHelper.isVulkanSupported(context) && VulkanHelper.getGpuCount() > 0
     }
 
+    @Synchronized
     fun getCachedResult(cacheKey: String): Bitmap? = srCache[cacheKey]
 
+    @Synchronized
     fun putCachedResult(cacheKey: String, bitmap: Bitmap) {
         srCache[cacheKey] = bitmap
     }
 
+    @Synchronized
     fun removeCachedResult(cacheKey: String) {
         srCache.remove(cacheKey)
     }
 
+    @Synchronized
     fun clearSrCache() {
         srCache.clear()
         logcat(LogPriority.INFO) { "SR: Cleared SR result cache" }

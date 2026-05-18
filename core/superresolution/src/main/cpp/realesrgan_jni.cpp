@@ -19,9 +19,10 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_mihon_core_superresolution_RealESRGANProcessor_nativeInit(
     JNIEnv *env, jobject thiz,
-    jstring param_path, jstring bin_path, jint gpuid, jstring model_type) {
+    jstring param_path, jstring bin_path, jint gpuid, jstring model_type, jboolean use_fp16) {
 
     auto* wrapper = new RealESRGANWrapper();
+    wrapper->useFp16 = (use_fp16 == JNI_TRUE);
 
     const char *param = env->GetStringUTFChars(param_path, nullptr);
     const char *model = env->GetStringUTFChars(bin_path, nullptr);
@@ -39,7 +40,7 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeInit(
         return 0;
     }
 
-    LOGI("RealESRGAN initialized: gpuid=%d, type=%s", gpuid, wrapper->modelType.c_str());
+    LOGI("RealESRGAN initialized: gpuid=%d, type=%s, fp16=%d", gpuid, wrapper->modelType.c_str(), wrapper->useFp16);
     return reinterpret_cast<jlong>(wrapper);
 }
 
@@ -73,9 +74,11 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         return nullptr;
     }
 
-    // 正确使用 ncnn::Mat 的 channel().row() API，不使用 ncnn::Mat::from_pixels
     ncnn::Mat inimage(in_w, in_h, 3);
     const unsigned char* rgba_data = static_cast<const unsigned char*>(pixels);
+    
+    const float mean_vals[3] = {0.0f, 0.0f, 0.0f};
+    const float norm_vals[3] = {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f};
     
     for (int y = 0; y < in_h; y++) {
         const unsigned char* rgba_row = rgba_data + y * in_w * 4;
@@ -85,9 +88,9 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         
         for (int x = 0; x < in_w; x++) {
             int idx = x * 4;
-            r_row[x] = rgba_row[idx + 0] / 255.0f;
-            g_row[x] = rgba_row[idx + 1] / 255.0f;
-            b_row[x] = rgba_row[idx + 2] / 255.0f;
+            r_row[x] = (rgba_row[idx + 0] - mean_vals[0]) * norm_vals[0];
+            g_row[x] = (rgba_row[idx + 1] - mean_vals[1]) * norm_vals[1];
+            b_row[x] = (rgba_row[idx + 2] - mean_vals[2]) * norm_vals[2];
         }
     }
 
@@ -101,7 +104,6 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         return nullptr;
     }
 
-    // 查找类和方法 - 保持 JNI 异常检查
     jclass bitmap_class = env->FindClass("android/graphics/Bitmap");
     if (env->ExceptionCheck()) {
         env->ExceptionDescribe();
@@ -179,7 +181,9 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         return nullptr;
     }
 
-    // 正确使用 ncnn::Mat 的 channel().row() API 写回数据，不使用 to_pixels
+    const float inv_norm_vals[3] = {255.0f, 255.0f, 255.0f};
+    const float add_mean_vals[3] = {0.0f, 0.0f, 0.0f};
+
     unsigned char* out_rgba = static_cast<unsigned char*>(out_pixels);
     for (int y = 0; y < out_h; y++) {
         const float* r_row = static_cast<const float*>(outimage.channel(0).row(y));
@@ -188,9 +192,9 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
         unsigned char* rgba_row = out_rgba + y * out_w * 4;
         
         for (int x = 0; x < out_w; x++) {
-            float r = r_row[x] * 255.0f;
-            float g = g_row[x] * 255.0f;
-            float b = b_row[x] * 255.0f;
+            float r = r_row[x] * inv_norm_vals[0] + add_mean_vals[0];
+            float g = g_row[x] * inv_norm_vals[1] + add_mean_vals[1];
+            float b = b_row[x] * inv_norm_vals[2] + add_mean_vals[2];
             
             rgba_row[x * 4 + 0] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, r)));
             rgba_row[x * 4 + 1] = static_cast<unsigned char>(std::max(0.0f, std::min(255.0f, g)));
@@ -205,7 +209,6 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeProcess(
 
     AndroidBitmap_unlockPixels(env, output_bitmap);
 
-    // 清理本地引用
     env->DeleteLocalRef(config_name);
     env->DeleteLocalRef(config);
     env->DeleteLocalRef(bitmap_class);
@@ -221,6 +224,8 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeRelease(
 
     if (handle == 0) return;
     auto* wrapper = reinterpret_cast<RealESRGANWrapper*>(handle);
+    if (wrapper->blob_vkallocator) delete wrapper->blob_vkallocator;
+    if (wrapper->staging_vkallocator) delete wrapper->staging_vkallocator;
     delete wrapper;
     LOGI("RealESRGAN released");
 }

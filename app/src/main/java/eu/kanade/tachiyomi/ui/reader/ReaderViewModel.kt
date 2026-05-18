@@ -453,8 +453,9 @@ class ReaderViewModel @JvmOverloads constructor(
         val pages = selectedChapter.pages ?: return
 
         mutableState.update {
-            it.copy(srCompleted = page.srBitmap != null)
+            it.copy()
         }
+        onCurrentPageChanged(page)
 
         viewModelScope.launchNonCancellable {
             updateChapterProgress(selectedChapter, page)
