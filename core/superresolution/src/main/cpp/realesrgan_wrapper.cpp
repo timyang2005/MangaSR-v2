@@ -155,8 +155,9 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         ex.input(input_blob, inimage);
         ex.extract(output_blob, out_tile);
 
-        if (out_tile.empty()) {
-            LOGE("Inference failed");
+        if (out_tile.empty() || out_tile.w < out_w || out_tile.h < out_h) {
+            LOGE("Inference failed or output too small: %dx%dx%d vs expected %dx%d",
+                 out_tile.w, out_tile.h, out_tile.c, out_w, out_h);
             active_processes.fetch_sub(1, std::memory_order_acq_rel);
             { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
             return false;
@@ -206,6 +207,10 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             int out_tile_w = out_x1 - out_x0;
             int out_tile_h = out_y1 - out_y0;
 
+            LOGI("Tile (%d/%d,%d/%d): in_tile=[%d×%d] prepad=[%d,%d] out_region=[%d,%d,%d,%d]",
+                 xi, xtiles, yi, ytiles, tile_w, tile_h, prepadding, prepadding,
+                 out_x0, out_y0, out_x1, out_y1);
+
             // Copy input tile from image
             ncnn::Mat in_tile(tile_w, tile_h, 3);
             for (int c = 0; c < 3; c++) {
@@ -220,8 +225,10 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             ncnn::Mat out_tile;
             {
                 ncnn::Extractor ex = net.create_extractor();
-                ex.input(input_blob, in_tile);
+                LOGI("Tile (%d,%d): ex.extract input=%dx%d", xi, yi, tile_w, tile_h);
                 int ret = ex.extract(output_blob, out_tile);
+                LOGI("Tile (%d,%d): ex.extract done ret=%d out=%dx%dx%d",
+                     xi, yi, ret, out_tile.w, out_tile.h, out_tile.c);
                 if (ret != 0 || out_tile.empty()) {
                     LOGE("Inference failed for tile (%d,%d), ret=%d", xi, yi, ret);
                     active_processes.fetch_sub(1, std::memory_order_acq_rel);
@@ -233,6 +240,16 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             // Offset within out_tile where valid (non-padded) region starts
             int prepad_x = (xi * tile_size - tile_x0) * scale;
             int prepad_y = (yi * tile_size - tile_y0) * scale;
+
+            // Defensive check: validate output tile dimensions before copying
+            if (prepad_y + out_tile_h > out_tile.h || prepad_x + out_tile_w > out_tile.w) {
+                LOGE("Tile (%d,%d): out_tile too small %dx%d, need at least %dx%d",
+                     xi, yi, out_tile.w, out_tile.h,
+                     prepad_x + out_tile_w, prepad_y + out_tile_h);
+                active_processes.fetch_sub(1, std::memory_order_acq_rel);
+                { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
+                return false;
+            }
 
             // Copy valid region to output
             for (int c = 0; c < 3; c++) {
