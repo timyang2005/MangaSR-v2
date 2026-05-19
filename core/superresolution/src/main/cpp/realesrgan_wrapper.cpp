@@ -225,6 +225,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             ncnn::Mat out_tile;
             {
                 ncnn::Extractor ex = net.create_extractor();
+                ex.input(input_blob, in_tile);
                 LOGI("Tile (%d,%d): ex.extract input=%dx%d", xi, yi, tile_w, tile_h);
                 int ret = ex.extract(output_blob, out_tile);
                 LOGI("Tile (%d,%d): ex.extract done ret=%d out=%dx%dx%d",
