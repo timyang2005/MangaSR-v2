@@ -23,6 +23,15 @@ if (Config.includeTelemetry) {
 android {
     namespace = "eu.kanade.tachiyomi"
 
+    signingConfigs {
+        create("ci") {
+            storeFile = file("ci.keystore")
+            storePassword = System.getenv("CI_STORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("CI_KEY_ALIAS") ?: "ci"
+            keyPassword = System.getenv("CI_KEY_PASSWORD") ?: "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "app.mihon"
 
@@ -43,6 +52,7 @@ android {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-${getLatestCommitCount()}"
             isPseudoLocalesEnabled = true
+            signingConfig = signingConfigs.getByName("ci")
         }
         val release by getting {
             isMinifyEnabled = Config.enableCodeShrink
