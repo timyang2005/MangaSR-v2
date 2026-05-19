@@ -63,6 +63,13 @@ void RealESRGANWrapper::markInvalid() {
     is_valid.store(false, std::memory_order_release);
 }
 
+void RealESRGANWrapper::waitForIdle() {
+    std::unique_lock<std::mutex> lock(cv_mutex);
+    cv.wait_for(lock, std::chrono::seconds(10), [this]() {
+        return active_processes.load(std::memory_order_acquire) == 0;
+    });
+}
+
 bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int gpu_id, const char* model_type, int initial_scale) {
     gpuid = gpu_id;
     modelType = model_type ? model_type : "realesrgan";
@@ -102,12 +109,14 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
     active_processes.fetch_add(1, std::memory_order_acq_rel);
     if (!is_valid.load(std::memory_order_acquire)) {
         active_processes.fetch_sub(1, std::memory_order_acq_rel);
+        cv.notify_all();
         LOGE("Wrapper invalid, cannot process");
         return false;
     }
 
     if (!loaded) {
         active_processes.fetch_sub(1, std::memory_order_acq_rel);
+        cv.notify_all();
         LOGE("Model not loaded");
         return false;
     }
@@ -129,6 +138,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
     if (outimage.empty()) {
         LOGE("Failed to create output Mat");
         active_processes.fetch_sub(1, std::memory_order_acq_rel);
+        { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
         return false;
     }
 
@@ -148,6 +158,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         if (out_tile.empty()) {
             LOGE("Inference failed");
             active_processes.fetch_sub(1, std::memory_order_acq_rel);
+            { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
             return false;
         }
 
@@ -160,6 +171,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
         }
         LOGI("Process complete (no tiling): %dx%d -> %dx%d", w, h, out_w, out_h);
         active_processes.fetch_sub(1, std::memory_order_acq_rel);
+        { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
         return true;
     }
 
@@ -174,6 +186,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
             if (!is_valid.load(std::memory_order_acquire)) {
                 LOGE("Wrapper invalidated during tiling, aborting");
                 active_processes.fetch_sub(1, std::memory_order_acq_rel);
+                { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
                 return false;
             }
 
@@ -212,6 +225,7 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
                 if (ret != 0 || out_tile.empty()) {
                     LOGE("Inference failed for tile (%d,%d), ret=%d", xi, yi, ret);
                     active_processes.fetch_sub(1, std::memory_order_acq_rel);
+                    { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
                     return false;
                 }
             }
@@ -245,5 +259,6 @@ bool RealESRGANWrapper::process(const ncnn::Mat& inimage, ncnn::Mat& outimage) {
     LOGI("Process complete: %dx%d -> %dx%d (tiles: %dx%d, tilesize=%d)",
          w, h, out_w, out_h, xtiles, ytiles, tile_size);
     active_processes.fetch_sub(1, std::memory_order_acq_rel);
+    { std::lock_guard<std::mutex> lock(cv_mutex); } cv.notify_all();
     return true;
 }

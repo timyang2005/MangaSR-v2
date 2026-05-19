@@ -227,11 +227,8 @@ Java_mihon_core_superresolution_RealESRGANProcessor_nativeRelease(
     if (handle == 0) return;
     auto* wrapper = reinterpret_cast<RealESRGANWrapper*>(handle);
     wrapper->markInvalid();
-    // Wait for in-flight process() calls to finish (up to 100ms)
-    for (int i = 0; i < 100; i++) {
-        if (wrapper->active_processes.load(std::memory_order_acquire) == 0) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+    // Wait for in-flight process() calls to finish (up to 10s via condition variable)
+    wrapper->waitForIdle();
     delete wrapper;
     LOGI("RealESRGAN released");
 }
