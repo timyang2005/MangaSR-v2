@@ -15,7 +15,7 @@ class SRPreloadDispatcher(
     private val context: Context,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val preloadWindow = 5
+    private val preloadWindow = 2
     private val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
     private val preloadingPages = mutableSetOf<String>()
 

@@ -189,19 +189,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
         cancelSrRefresh()
         val page = readerPage ?: return
         val chId = page.chapter.chapter.id ?: -1L
-        val cacheKey = buildSrCacheKey(chId, page.index, manager)
-        
-        // 通知 sr 开始处理
+
         onSrStatusChanged?.invoke(false)
-        
-        // 记录开始时间
         srStartTimestamp = System.currentTimeMillis()
-        
+
         var attempts = 0
         val maxAttempts = 20
         val runnable = object : Runnable {
             override fun run() {
                 attempts++
+                val cacheKey = buildSrCacheKey(chId, page.index, manager)
                 val cached = manager.getCachedResult(cacheKey)
                 if (cached != null) {
                     (pageView as? SubsamplingScaleImageView)?.let { ssiv ->
@@ -217,6 +214,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     srRefreshRunnable = this
                     postDelayed(this, SR_REFRESH_INTERVAL_MS)
                 } else {
+                    onSrStatusChanged?.invoke(true)
                     logcat(LogPriority.WARN) { "SR: Refresh timed out for ch$chId p${page.index} after $maxAttempts attempts" }
                 }
             }
