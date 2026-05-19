@@ -13,6 +13,7 @@ public:
     bool loaded = false;
     bool useFp16 = true;
     std::string modelType = "realesrgan";
+    std::atomic<int> active_processes{0};
 
     bool load(const char* param_path, const char* model_path, int gpu_id, const char* model_type, int initial_scale);
     bool process(const ncnn::Mat& inimage, ncnn::Mat& outimage);

@@ -140,6 +140,8 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-v2-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-v2-
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -154,7 +156,7 @@ jobs:
 
       - name: Build APK
         run: |
-          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --stacktrace 2>&1 | tee build.log
+          ./gradlew clean assemble${{ env.BUILD_TYPE }} --max-workers=2 --no-daemon --info --stacktrace 2>&1 | tee build.log
           BUILD_EXIT=${PIPESTATUS[0]}
           
           if [ $BUILD_EXIT -ne 0 ]; then

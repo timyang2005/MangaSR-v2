@@ -63,6 +63,7 @@ import mihon.core.superresolution.SRPreloadDispatcher
 import mihon.core.superresolution.SRStatus
 import mihon.core.superresolution.SRStatusInfo
 import mihon.core.superresolution.SRStatusViewModel
+import mihon.core.superresolution.SuperResolutionManager
 import tachiyomi.core.common.preference.toggle
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
@@ -109,6 +110,7 @@ class ReaderViewModel @JvmOverloads constructor(
     private val setMangaViewerFlags: SetMangaViewerFlags = Injekt.get(),
     private val getIncognitoState: GetIncognitoState = Injekt.get(),
     private val libraryPreferences: LibraryPreferences = Injekt.get(),
+    private val srManager: SuperResolutionManager = Injekt.get(),
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(State())
@@ -787,6 +789,7 @@ class ReaderViewModel @JvmOverloads constructor(
 
     fun onSrStatusChanged(page: ReaderPage, completed: Boolean) {
         val currentPage = state.value.currentChapter?.pages?.getOrNull(state.value.currentPage - 1)
+        val activeModel = srManager.activeModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
         
         if (completed) {
             // sr 完成
@@ -798,7 +801,7 @@ class ReaderViewModel @JvmOverloads constructor(
                 srStatusViewModel.onSRDone(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    model = page.srModel ?: activeModel,
                     elapsedMs = elapsed
                 )
                 stopTimer()
@@ -807,13 +810,13 @@ class ReaderViewModel @JvmOverloads constructor(
             // sr 开始
             page.srStatus = SRStatus.PROCESSING
             page.srStartTime = System.currentTimeMillis()
-            page.srModel = SRModel.REALCUGAN_2X_CONSERVATIVE
+            page.srModel = activeModel
             
             if (currentPage == page) {
                 srStatusViewModel.onSRStart(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
+                    model = page.srModel ?: activeModel
                 )
                 startTimer()
             }
@@ -827,12 +830,14 @@ class ReaderViewModel @JvmOverloads constructor(
             return
         }
 
+        val activeModel = srManager.activeModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
+
         when (page.srStatus) {
             SRStatus.DONE -> {
                 srStatusViewModel.onSRDone(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
+                    model = page.srModel ?: activeModel,
                     elapsedMs = page.srElapsed ?: 0L
                 )
                 stopTimer()
@@ -842,13 +847,13 @@ class ReaderViewModel @JvmOverloads constructor(
                     srStatusViewModel.onSRStartWithStartTime(
                         chapterId = page.chapter.chapter.id ?: -1L,
                         pageIndex = page.index,
-                        model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE,
+                        model = page.srModel ?: activeModel,
                         startTimeMs = startTime
                     )
                 } ?: srStatusViewModel.onSRStart(
                     chapterId = page.chapter.chapter.id ?: -1L,
                     pageIndex = page.index,
-                    model = page.srModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
+                    model = page.srModel ?: activeModel
                 )
                 startTimer()
             }
