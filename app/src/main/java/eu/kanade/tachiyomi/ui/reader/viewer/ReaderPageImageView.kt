@@ -221,7 +221,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             }
         }
         srRefreshRunnable = runnable
-        postDelayed(runnable, SR_REFRESH_INTERVAL_MS)
+        postDelayed(runnable, 0)
     }
 
     private fun buildSrCacheKey(chapterId: Long, pageIndex: Int, manager: SuperResolutionManager): String {
@@ -497,4 +497,4 @@ open class ReaderPageImageView @JvmOverloads constructor(
 }
 
 private const val MAX_ZOOM_SCALE = 5F
-private const val SR_REFRESH_INTERVAL_MS = 500L
+private const val SR_REFRESH_INTERVAL_MS = 300L

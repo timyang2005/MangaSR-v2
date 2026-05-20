@@ -76,6 +76,7 @@ class SRPreloadDispatcher(
     }
 
     private fun buildCacheKey(chapterId: Long, pageIndex: Int): String {
-        return "page_${chapterId}_${pageIndex}_${manager.activeModel?.key}_${manager.activeScale}"
+        val modelKey = manager.activeModel?.key ?: "unknown"
+        return "page_${chapterId}_${pageIndex}_${modelKey}_${manager.activeScale}"
     }
 }

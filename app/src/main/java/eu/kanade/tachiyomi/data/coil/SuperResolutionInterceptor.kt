@@ -35,7 +35,7 @@ class SuperResolutionInterceptor(
     private val srScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val processingKeys = mutableSetOf<String>()
 
-    val srResultFlow = MutableSharedFlow<SRResult>(extraBufferCapacity = 64)
+    val srResultFlow = MutableSharedFlow<SRResult>(extraBufferCapacity = 0)
 
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
         val result = chain.proceed()
@@ -60,11 +60,11 @@ class SuperResolutionInterceptor(
         }
 
         val cacheKey = if (pageIndex >= 0 && chapterId >= 0) {
-            "page_${chapterId}_${pageIndex}_${manager.activeModel?.key}_${manager.activeScale}"
+            "page_${chapterId}_${pageIndex}_${manager.activeModel?.key ?: "unknown"}_${manager.activeScale}"
         } else if (pageIndex >= 0) {
-            "page_${pageIndex}_${manager.activeModel?.key}_${manager.activeScale}"
+            "page_${pageIndex}_${manager.activeModel?.key ?: "unknown"}_${manager.activeScale}"
         } else {
-            "${bitmap.width}x${bitmap.height}_${System.identityHashCode(bitmap)}_${manager.activeModel?.key}_${manager.activeScale}"
+            "${bitmap.width}x${bitmap.height}_${System.identityHashCode(bitmap)}_${manager.activeModel?.key ?: "unknown"}_${manager.activeScale}"
         }
 
         manager.getCachedResult(cacheKey)?.let { cachedBitmap ->

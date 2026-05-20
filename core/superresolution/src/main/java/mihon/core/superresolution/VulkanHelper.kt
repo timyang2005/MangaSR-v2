@@ -17,8 +17,8 @@ object VulkanHelper {
         return hasVulkan
     }
 
-    fun getGpuCount(): Int {
-        return try {
+    val gpuCount by lazy {
+        try {
             val count = nativeGetGpuCount()
             logcat(LogPriority.INFO) { "VulkanHelper: nativeGetGpuCount=$count" }
             count

@@ -80,6 +80,7 @@ bool RealESRGANWrapper::load(const char* param_path, const char* model_path, int
         net.opt.use_vulkan_compute = true;
         int device_id = (gpuid < ncnn::get_gpu_count()) ? gpuid : ncnn::get_default_gpu_index();
         net.set_vulkan_device(device_id);
+        net.opt.num_threads = 4;
     }
 
     net.opt.use_fp16_storage = useFp16;
