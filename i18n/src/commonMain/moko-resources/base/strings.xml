@@ -427,6 +427,8 @@
     <string name="pref_sr_density_correction">Density Correction</string>
     <string name="pref_sr_quality">Quality</string>
     <string name="sr_quality_heading">Quality Preset</string>
+    <string name="pref_sr_benchmark">Run SR Benchmark</string>
+    <string name="pref_sr_benchmark_summary">Test device SR speed and auto-tune settings</string>
     <string name="pref_flash_page">Flash on page change</string>
     <string name="pref_flash_page_summ">Reduces ghosting on e-ink displays</string>
     <string name="pref_flash_duration">Flash duration</string>

@@ -958,4 +958,6 @@
     <string name="pref_sr_density_correction">密度校正</string>
     <string name="pref_sr_quality">画质</string>
     <string name="sr_quality_heading">画质预设</string>
+    <string name="pref_sr_benchmark">运行 SR 性能测试</string>
+    <string name="pref_sr_benchmark_summary">测试设备 SR 处理速度，自动推荐最优配置</string>
 </resources>

@@ -1,5 +1,9 @@
 package eu.kanade.presentation.more.settings.screen
 
+import android.app.AlertDialog
+import android.content.Context
+import android.content.DialogInterface
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
@@ -15,8 +19,14 @@ import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mihon.core.superresolution.SRModel
+import mihon.core.superresolution.SuperResolutionManager
+import mihon.core.superresolution.benchmark.DeviceTier
+import mihon.core.superresolution.benchmark.SRBenchmark
+import mihon.core.superresolution.profile.DeviceProfileManager
 import eu.kanade.tachiyomi.data.sr.SRLogUtil
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.pluralStringResource
@@ -467,7 +477,71 @@ object SettingsReaderScreen : SearchableSettings {
                         }
                     },
                 ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_sr_benchmark),
+                    subtitle = stringResource(MR.strings.pref_sr_benchmark_summary),
+                    onClick = {
+                        scope.launch {
+                            val ctx = context
+                            val manager = Injekt.get<SuperResolutionManager>()
+                            if (!manager.isReady) {
+                                Toast.makeText(ctx, "SR engine not ready", Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val benchmark = SRBenchmark(manager)
+                            val result = withContext(Dispatchers.Default) {
+                                benchmark.run(ctx)
+                            }
+                            DeviceProfileManager(ctx).saveResult(result)
+                            showBenchmarkResultDialog(ctx, result, readerPreferences)
+                        }
+                    },
+                ),
             ),
         )
+    }
+
+    private fun showBenchmarkResultDialog(
+        context: Context,
+        result: mihon.core.superresolution.benchmark.BenchmarkResult,
+        readerPreferences: ReaderPreferences,
+    ) {
+        val tierLabel = when (result.deviceTier) {
+            DeviceTier.FAST -> "FAST (High Performance)"
+            DeviceTier.MID -> "MID (Mid Range)"
+            DeviceTier.SLOW -> "SLOW (Low End)"
+            DeviceTier.UNKNOWN -> "Unavailable"
+        }
+        val message = buildString {
+            appendLine("Device Tier: $tierLabel")
+            appendLine("Inference Time: ${result.inferenceMs}ms")
+            if (result.deviceTier != DeviceTier.UNKNOWN) {
+                val config = DeviceProfileManager(context).getConfig()
+                if (config != null) {
+                    appendLine("Recommended preload window: ${config.preloadWindow}")
+                    appendLine("Recommended poll timeout: ${config.maxAttempts} × 500ms")
+                }
+            } else {
+                appendLine("SR processing did not produce valid results.")
+                appendLine("The benchmark could not determine a device tier.")
+            }
+        }
+
+        AlertDialog.Builder(context)
+            .setTitle("SR Benchmark Complete")
+            .setMessage(message)
+            .setPositiveButton("Apply Recommended Config") { _: DialogInterface, _: Int ->
+                val config = DeviceProfileManager(context).getConfig()
+                if (config != null) {
+                    readerPreferences.srPreloadCount.set(config.preloadWindow)
+                    Toast.makeText(
+                        context,
+                        "Preload window set to ${config.preloadWindow}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 }
