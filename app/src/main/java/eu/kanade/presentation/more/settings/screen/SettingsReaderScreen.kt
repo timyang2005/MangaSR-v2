@@ -5,10 +5,15 @@ import android.content.Context
 import android.content.DialogInterface
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import eu.kanade.tachiyomi.data.sr.CacheUsage
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import eu.kanade.presentation.more.settings.Preference
@@ -29,6 +34,7 @@ import mihon.core.superresolution.benchmark.SRBenchmark
 import mihon.core.superresolution.profile.DeviceProfileManager
 import eu.kanade.tachiyomi.data.sr.SRCacheManager
 import eu.kanade.tachiyomi.data.sr.SRLogUtil
+import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
@@ -458,8 +464,20 @@ object SettingsReaderScreen : SearchableSettings {
         val exportLogsTitle = stringResource(MR.strings.pref_sr_export_logs)
         val exportLogsSummary = stringResource(MR.strings.pref_sr_export_logs_summary)
         val clearCacheTitle = stringResource(MR.strings.pref_sr_clear_cache)
-        val clearCacheSummary = stringResource(MR.strings.pref_sr_clear_cache_summary)
+        val clearCacheSummaryDefault = stringResource(MR.strings.pref_sr_clear_cache_summary)
         val cacheCleared = stringResource(MR.strings.pref_sr_cache_cleared)
+        var cacheUsage by remember { mutableStateOf<CacheUsage?>(null) }
+        var cacheRefreshTrigger by remember { mutableIntStateOf(0) }
+        LaunchedEffect(cacheRefreshTrigger) {
+            cacheUsage = withContext(Dispatchers.IO) { SRCacheManager.getCacheUsage() }
+        }
+        val clearCacheSubtitle = cacheUsage?.let { usage ->
+            if (usage.totalBytes == 0L) clearCacheSummaryDefault
+            else {
+                val size = android.text.format.Formatter.formatShortFileSize(context, usage.totalBytes)
+                stringResource(MR.strings.pref_sr_clear_cache_usage, size)
+            }
+        } ?: clearCacheSummaryDefault
         val benchmarkNotReady = stringResource(MR.strings.pref_sr_benchmark_not_ready)
         val tierFast = stringResource(MR.strings.pref_sr_benchmark_tier_fast)
         val tierMid = stringResource(MR.strings.pref_sr_benchmark_tier_mid)
@@ -529,11 +547,20 @@ object SettingsReaderScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.TextPreference(
                     title = clearCacheTitle,
-                    subtitle = clearCacheSummary,
+                    subtitle = clearCacheSubtitle,
                     onClick = {
                         scope.launch {
-                            SRCacheManager.clearAllCaches()
-                            Toast.makeText(context, cacheCleared, Toast.LENGTH_SHORT).show()
+                            val usage = withContext(Dispatchers.IO) {
+                                SRCacheManager.clearAllCaches()
+                            }
+                            cacheRefreshTrigger++
+                            val toastMsg = if (usage.totalFiles > 0) {
+                                val size = android.text.format.Formatter.formatShortFileSize(context, usage.totalBytes)
+                                context.stringResource(MR.strings.pref_sr_cache_cleared_detail, usage.totalFiles, size)
+                            } else {
+                                cacheCleared
+                            }
+                            Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                         }
                     },
                 ),

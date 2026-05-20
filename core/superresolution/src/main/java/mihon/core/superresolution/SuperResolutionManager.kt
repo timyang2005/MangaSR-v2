@@ -68,6 +68,10 @@ class SuperResolutionManager(
         VulkanHelper.isVulkanSupported(context) && VulkanHelper.gpuCount > 0
     }
 
+    fun getCacheUsage(): Pair<Int, Long> = synchronized(cacheLock) {
+        srCache.size to srCache.values.sumOf { it.allocationByteCount.toLong() }
+    }
+
     fun getCachedResult(cacheKey: String): Bitmap? = synchronized(cacheLock) { srCache[cacheKey] }
 
     fun putCachedResult(cacheKey: String, bitmap: Bitmap) = synchronized(cacheLock) {
@@ -79,8 +83,10 @@ class SuperResolutionManager(
     }
 
     fun clearSrCache() = synchronized(cacheLock) {
+        val size = srCache.size
+        val bytes = srCache.values.sumOf { it.allocationByteCount.toLong() }
         srCache.clear()
-        logcat(LogPriority.INFO) { "SR: Cleared SR result cache" }
+        logcat(LogPriority.INFO) { "SR: Cleared SR result cache ($size entries, ${bytes / 1024}KB)" }
     }
 
     fun registerProcessingJob(job: Job) {

@@ -54,9 +54,15 @@ class SRDiskCache(
         getFile(key).delete()
     }
 
+    fun getUsage(): Pair<Int, Long> {
+        val files = cacheDir.listFiles()
+        return (files?.size ?: 0) to (files?.sumOf { it.length() } ?: 0L)
+    }
+
     fun clear() {
+        val (count, bytes) = getUsage()
         cacheDir.listFiles()?.forEach { it.delete() }
-        logcat(LogPriority.INFO) { "SR: Cleared disk cache" }
+        logcat(LogPriority.INFO) { "SR: Cleared disk cache ($count files, ${bytes / 1024}KB)" }
     }
 
     private fun getFile(key: String): File {

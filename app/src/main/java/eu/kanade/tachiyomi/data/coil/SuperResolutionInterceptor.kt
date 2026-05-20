@@ -45,10 +45,6 @@ class SuperResolutionInterceptor(
             logcat(LogPriority.DEBUG) { "SR: Skipped - not enabled for this request" }
             return result
         }
-        if (!manager.isReady) {
-            logcat(LogPriority.DEBUG) { "SR: Skipped - manager not ready" }
-            return result
-        }
         if (result !is SuccessResult) return result
 
         val bitmap = (result.image as? coil3.BitmapImage)?.bitmap
