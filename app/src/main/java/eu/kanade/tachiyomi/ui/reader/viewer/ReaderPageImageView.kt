@@ -338,34 +338,31 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 val pageIdx = readerPage?.index ?: -1
                 val chId = readerPage?.chapter?.chapter?.id ?: -1L
                 val srManager = Injekt.get<SuperResolutionManager>()
-                if (!srManager.isReady) {
-                    logcat(LogPriority.DEBUG) { "SR: Manager not ready, falling through to normal load ch$chId p$pageIdx" }
-                    setHardwareConfig(ImageUtil.canUseHardwareBitmap(data))
-                    setImage(ImageSource.inputStream(data.inputStream()))
-                    isVisible = true
-                    return@apply
-                }
 
-                val srCacheKey = buildSrCacheKey(chId, pageIdx, srManager)
-                val cachedSr = srManager.getCachedResult(srCacheKey)
-                if (cachedSr != null) {
-                    setImage(ImageSource.bitmap(cachedSr))
-                    isVisible = true
-                    readerPage?.srBitmap = cachedSr
-                    onSrStatusChanged?.invoke(true)
-                    logcat(LogPriority.INFO) { "SR: Direct cache hit for ch$chId p$pageIdx ${cachedSr.width}x${cachedSr.height}" }
-                    return@apply
-                }
+                if (srManager.isReady) {
+                    val srCacheKey = buildSrCacheKey(chId, pageIdx, srManager)
+                    val cachedSr = srManager.getCachedResult(srCacheKey)
+                    if (cachedSr != null) {
+                        setImage(ImageSource.bitmap(cachedSr))
+                        isVisible = true
+                        readerPage?.srBitmap = cachedSr
+                        onSrStatusChanged?.invoke(true)
+                        logcat(LogPriority.INFO) { "SR: Direct cache hit for ch$chId p$pageIdx ${cachedSr.width}x${cachedSr.height}" }
+                        return@apply
+                    }
 
-                val preloadDispatcher = Injekt.get<SRPreloadDispatcher>()
-                val preloadedSr = preloadDispatcher.getSrBitmap(chId, pageIdx)
-                if (preloadedSr != null) {
-                    setImage(ImageSource.bitmap(preloadedSr))
-                    isVisible = true
-                    readerPage?.srBitmap = preloadedSr
-                    onSrStatusChanged?.invoke(true)
-                    logcat(LogPriority.INFO) { "SR: Preload hit for ch$chId p$pageIdx ${preloadedSr.width}x${preloadedSr.height}" }
-                    return@apply
+                    val preloadDispatcher = Injekt.get<SRPreloadDispatcher>()
+                    val preloadedSr = preloadDispatcher.getSrBitmap(chId, pageIdx)
+                    if (preloadedSr != null) {
+                        setImage(ImageSource.bitmap(preloadedSr))
+                        isVisible = true
+                        readerPage?.srBitmap = preloadedSr
+                        onSrStatusChanged?.invoke(true)
+                        logcat(LogPriority.INFO) { "SR: Preload hit for ch$chId p$pageIdx ${preloadedSr.width}x${preloadedSr.height}" }
+                        return@apply
+                    }
+                } else {
+                    logcat(LogPriority.DEBUG) { "SR: Manager not ready, creating request to trigger deferred load ch$chId p$pageIdx" }
                 }
 
                 ImageRequest.Builder(context)
