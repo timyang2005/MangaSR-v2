@@ -47,6 +47,7 @@ import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
 import logcat.LogPriority
 import logcat.logcat
 import mihon.core.superresolution.SRPreloadDispatcher
+import mihon.core.superresolution.profile.DeviceProfileManager
 import mihon.core.superresolution.SuperResolutionManager
 import okio.BufferedSource
 import tachiyomi.core.common.util.system.ImageUtil
@@ -194,7 +195,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         srStartTimestamp = System.currentTimeMillis()
 
         var attempts = 0
-        val maxAttempts = 20
+        val maxAttempts = DeviceProfileManager(context).getConfig()?.maxAttempts ?: 20
         val runnable = object : Runnable {
             override fun run() {
                 attempts++
