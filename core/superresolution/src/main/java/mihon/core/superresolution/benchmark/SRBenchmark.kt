@@ -14,36 +14,46 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
 
     suspend fun run(context: Context): BenchmarkResult {
         val synthetic = createSyntheticImage()
-        val (ms, result, srDidRun) = runOnce(synthetic)
-        synthetic.recycle()
+        try {
+            val (ms, result, srDidRun) = runOnce(synthetic)
 
-        if (!srDidRun) {
-            result.recycle()
-            return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
-        }
-
-        val finalMs = if (ms < 300) {
-            val real = loadAssetImage(context, "benchmark_sample.png")
-            val (ms2, result2, ok2) = runOnce(real)
-            real.recycle()
-            result.recycle()
-            if (!ok2) {
-                result2.recycle()
+            if (!srDidRun) {
+                result.recycle()
                 return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
             }
-            result2.recycle()
-            ms2
-        } else {
-            result.recycle()
-            ms
-        }
 
-        return BenchmarkResult(
-            inferenceMs = finalMs,
-            deviceTier = classifyTier(finalMs),
-            scale = manager.activeScale,
-            modelKey = manager.activeModel?.key,
-        )
+            val finalMs = if (ms < 300) {
+                val real = loadAssetImage(context, "benchmark_sample.png")
+                if (real == null) {
+                    result.recycle()
+                    return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
+                }
+                try {
+                    val (ms2, result2, ok2) = runOnce(real)
+                    if (!ok2) {
+                        result2.recycle()
+                        return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
+                    }
+                    result2.recycle()
+                    ms2
+                } finally {
+                    real.recycle()
+                    result.recycle()
+                }
+            } else {
+                result.recycle()
+                ms
+            }
+
+            return BenchmarkResult(
+                inferenceMs = finalMs,
+                deviceTier = classifyTier(finalMs),
+                scale = manager.activeScale,
+                modelKey = manager.activeModel?.key,
+            )
+        } finally {
+            synthetic.recycle()
+        }
     }
 
     private suspend fun runOnce(input: Bitmap): Triple<Long, Bitmap, Boolean> {
@@ -83,7 +93,11 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
         return bitmap
     }
 
-    private fun loadAssetImage(context: Context, filename: String): Bitmap {
-        return context.assets.open(filename).use { BitmapFactory.decodeStream(it) }
+    private fun loadAssetImage(context: Context, filename: String): Bitmap? {
+        return try {
+            context.assets.open(filename).use { BitmapFactory.decodeStream(it) }
+        } catch (_: Exception) {
+            null
+        }
     }
 }
