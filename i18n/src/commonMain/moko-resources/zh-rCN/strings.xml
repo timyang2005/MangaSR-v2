@@ -960,4 +960,24 @@
     <string name="sr_quality_heading">画质预设</string>
     <string name="pref_sr_benchmark">运行 SR 性能测试</string>
     <string name="pref_sr_benchmark_summary">测试设备 SR 处理速度，自动推荐最优配置</string>
+    <string name="pref_sr_clear_cache">清理 SR 缓存</string>
+    <string name="pref_sr_clear_cache_summary">删除已缓存的 SR 结果以释放内存</string>
+    <string name="pref_sr_cache_cleared">SR 缓存已清理</string>
+    <string name="pref_sr_export_logs">导出错误日志</string>
+    <string name="pref_sr_export_logs_summary">分享超分辨率日志以便调试</string>
+    <string name="pref_sr_benchmark_not_ready">SR 引擎未就绪</string>
+    <string name="pref_sr_benchmark_tier_fast">FAST（高性能）</string>
+    <string name="pref_sr_benchmark_tier_mid">MID（中等）</string>
+    <string name="pref_sr_benchmark_tier_slow">SLOW（低性能）</string>
+    <string name="pref_sr_benchmark_tier_unknown">不可用</string>
+    <string name="pref_sr_benchmark_dialog_title">SR 性能测试完成</string>
+    <string name="pref_sr_benchmark_dialog_device_tier">设备分级：%s</string>
+    <string name="pref_sr_benchmark_dialog_inference_time">推理耗时：%1$dms</string>
+    <string name="pref_sr_benchmark_dialog_preload_window">推荐预加载窗口：%1$d</string>
+    <string name="pref_sr_benchmark_dialog_poll_timeout">推荐轮询超时：%1$d × 500ms</string>
+    <string name="pref_sr_benchmark_dialog_no_valid">SR 处理未产生有效结果。</string>
+    <string name="pref_sr_benchmark_dialog_no_tier">基准测试无法确定设备分级。</string>
+    <string name="pref_sr_benchmark_dialog_apply">应用推荐配置</string>
+    <string name="pref_sr_benchmark_dialog_close">关闭</string>
+    <string name="pref_sr_benchmark_applied">预加载窗口已设为 %1$d</string>
 </resources>

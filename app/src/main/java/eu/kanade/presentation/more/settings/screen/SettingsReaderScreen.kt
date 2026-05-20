@@ -27,6 +27,7 @@ import mihon.core.superresolution.SuperResolutionManager
 import mihon.core.superresolution.benchmark.DeviceTier
 import mihon.core.superresolution.benchmark.SRBenchmark
 import mihon.core.superresolution.profile.DeviceProfileManager
+import eu.kanade.tachiyomi.data.sr.SRCacheManager
 import eu.kanade.tachiyomi.data.sr.SRLogUtil
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.pluralStringResource
@@ -453,6 +454,28 @@ object SettingsReaderScreen : SearchableSettings {
         val scope = rememberCoroutineScope()
         val srLogUtil = remember { SRLogUtil(context) }
 
+        // i18n strings
+        val exportLogsTitle = stringResource(MR.strings.pref_sr_export_logs)
+        val exportLogsSummary = stringResource(MR.strings.pref_sr_export_logs_summary)
+        val clearCacheTitle = stringResource(MR.strings.pref_sr_clear_cache)
+        val clearCacheSummary = stringResource(MR.strings.pref_sr_clear_cache_summary)
+        val cacheCleared = stringResource(MR.strings.pref_sr_cache_cleared)
+        val benchmarkNotReady = stringResource(MR.strings.pref_sr_benchmark_not_ready)
+        val tierFast = stringResource(MR.strings.pref_sr_benchmark_tier_fast)
+        val tierMid = stringResource(MR.strings.pref_sr_benchmark_tier_mid)
+        val tierSlow = stringResource(MR.strings.pref_sr_benchmark_tier_slow)
+        val tierUnknown = stringResource(MR.strings.pref_sr_benchmark_tier_unknown)
+        val dialogTitle = stringResource(MR.strings.pref_sr_benchmark_dialog_title)
+        val dialogDeviceTier = stringResource(MR.strings.pref_sr_benchmark_dialog_device_tier)
+        val dialogInferenceTime = stringResource(MR.strings.pref_sr_benchmark_dialog_inference_time)
+        val dialogPreloadWindow = stringResource(MR.strings.pref_sr_benchmark_dialog_preload_window)
+        val dialogPollTimeout = stringResource(MR.strings.pref_sr_benchmark_dialog_poll_timeout)
+        val dialogNoValid = stringResource(MR.strings.pref_sr_benchmark_dialog_no_valid)
+        val dialogNoTier = stringResource(MR.strings.pref_sr_benchmark_dialog_no_tier)
+        val applyButton = stringResource(MR.strings.pref_sr_benchmark_dialog_apply)
+        val closeButton = stringResource(MR.strings.pref_sr_benchmark_dialog_close)
+        val toastApplied = stringResource(MR.strings.pref_sr_benchmark_applied)
+
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_sr_enabled),
             preferenceItems = persistentListOf(
@@ -469,8 +492,8 @@ object SettingsReaderScreen : SearchableSettings {
                     enabled = srEnabled,
                 ),
                 Preference.PreferenceItem.TextPreference(
-                    title = "Export SR logs",
-                    subtitle = "Share super resolution logs for debugging",
+                    title = exportLogsTitle,
+                    subtitle = exportLogsSummary,
                     onClick = {
                         scope.launch {
                             srLogUtil.dumpSRLogs()
@@ -485,7 +508,7 @@ object SettingsReaderScreen : SearchableSettings {
                             val ctx = context
                             val manager = Injekt.get<SuperResolutionManager>()
                             if (!manager.isReady) {
-                                Toast.makeText(ctx, "SR engine not ready", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, benchmarkNotReady, Toast.LENGTH_SHORT).show()
                                 return@launch
                             }
                             val benchmark = SRBenchmark(manager)
@@ -493,7 +516,24 @@ object SettingsReaderScreen : SearchableSettings {
                                 benchmark.run(ctx)
                             }
                             DeviceProfileManager(ctx).saveResult(result)
-                            showBenchmarkResultDialog(ctx, result, readerPreferences)
+                            showBenchmarkResultDialog(
+                                ctx, result, readerPreferences,
+                                tierFast, tierMid, tierSlow, tierUnknown,
+                                dialogTitle, dialogDeviceTier, dialogInferenceTime,
+                                dialogPreloadWindow, dialogPollTimeout,
+                                dialogNoValid, dialogNoTier,
+                                applyButton, closeButton, toastApplied,
+                            )
+                        }
+                    },
+                ),
+                Preference.PreferenceItem.TextPreference(
+                    title = clearCacheTitle,
+                    subtitle = clearCacheSummary,
+                    onClick = {
+                        scope.launch {
+                            SRCacheManager.clearAllCaches()
+                            Toast.makeText(context, cacheCleared, Toast.LENGTH_SHORT).show()
                         }
                     },
                 ),
@@ -505,43 +545,57 @@ object SettingsReaderScreen : SearchableSettings {
         context: Context,
         result: mihon.core.superresolution.benchmark.BenchmarkResult,
         readerPreferences: ReaderPreferences,
+        tierFast: String,
+        tierMid: String,
+        tierSlow: String,
+        tierUnknown: String,
+        dialogTitle: String,
+        dialogDeviceTier: String,
+        dialogInferenceTime: String,
+        dialogPreloadWindow: String,
+        dialogPollTimeout: String,
+        dialogNoValid: String,
+        dialogNoTier: String,
+        applyButton: String,
+        closeButton: String,
+        toastApplied: String,
     ) {
         val tierLabel = when (result.deviceTier) {
-            DeviceTier.FAST -> "FAST (High Performance)"
-            DeviceTier.MID -> "MID (Mid Range)"
-            DeviceTier.SLOW -> "SLOW (Low End)"
-            DeviceTier.UNKNOWN -> "Unavailable"
+            DeviceTier.FAST -> tierFast
+            DeviceTier.MID -> tierMid
+            DeviceTier.SLOW -> tierSlow
+            DeviceTier.UNKNOWN -> tierUnknown
         }
         val message = buildString {
-            appendLine("Device Tier: $tierLabel")
-            appendLine("Inference Time: ${result.inferenceMs}ms")
+            appendLine(dialogDeviceTier.format(tierLabel))
+            appendLine(dialogInferenceTime.format(result.inferenceMs))
             if (result.deviceTier != DeviceTier.UNKNOWN) {
                 val config = DeviceProfileManager(context).getConfig()
                 if (config != null) {
-                    appendLine("Recommended preload window: ${config.preloadWindow}")
-                    appendLine("Recommended poll timeout: ${config.maxAttempts} × 500ms")
+                    appendLine(dialogPreloadWindow.format(config.preloadWindow))
+                    appendLine(dialogPollTimeout.format(config.maxAttempts))
                 }
             } else {
-                appendLine("SR processing did not produce valid results.")
-                appendLine("The benchmark could not determine a device tier.")
+                appendLine(dialogNoValid)
+                appendLine(dialogNoTier)
             }
         }
 
         AlertDialog.Builder(context)
-            .setTitle("SR Benchmark Complete")
+            .setTitle(dialogTitle)
             .setMessage(message)
-            .setPositiveButton("Apply Recommended Config") { _: DialogInterface, _: Int ->
+            .setPositiveButton(applyButton) { _: DialogInterface, _: Int ->
                 val config = DeviceProfileManager(context).getConfig()
                 if (config != null) {
                     readerPreferences.srPreloadCount.set(config.preloadWindow)
                     Toast.makeText(
                         context,
-                        "Preload window set to ${config.preloadWindow}",
+                        toastApplied.format(config.preloadWindow),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton(closeButton, null)
             .show()
     }
 }
