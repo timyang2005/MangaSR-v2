@@ -56,7 +56,7 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
 
     suspend fun run(progress: (String) -> Unit): BenchmarkResult {
         progress("正在准备测试图像…")
-        val testBitmap = createTestImage()  // 300×400 ARGB_8888
+        val testBitmap = createTestImage()  // 800×1100 ARGB_8888
 
         progress("正在执行 SR 推理测试…")
         val startTime = System.nanoTime()
@@ -76,14 +76,13 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
     }
 
     private fun classifyTier(ms: Long): DeviceTier = when {
-        ms < 2000  -> DeviceTier.FAST
-        ms < 6000  -> DeviceTier.MID
+        ms < 3000  -> DeviceTier.FAST
+        ms < 8000  -> DeviceTier.MID
         else       -> DeviceTier.SLOW
     }
 }
-```
 
-**为什么只测一次？** SR 性能主要取决于 GPU/NPU，波动小。测试图 300×400 是漫画单页 ~1/9，1-6s 完成，体验可接受。
+**为什么只测一次？** SR 性能主要取决于 GPU/NPU，波动小。测试图 800×1100 接近实际页面尺寸，触发约 6 个 tile（800/400×1100/400），~2-8s 完成，能反映真实 tiling 行为。
 
 ### 1.2 设备分级 — DeviceProfileManager
 
@@ -98,9 +97,11 @@ data class DeviceConfig(
 )
 
 // 映射规则 (写死在代码中, 不强制写入 preference)
-FAST  (≤2s):   preloadWindow=5, maxAttempts=40   // 20s 内能完成约 4 页
-MID   (2-6s):  preloadWindow=2, maxAttempts=30   // 15s 内完成约 3 页
-SLOW  (>6s):   preloadWindow=0, maxAttempts=20   // 禁用预加载, 翻页不卡
+FAST  (≤3s):   preloadWindow=5, maxAttempts=40   // 30s 内能完成约 5 页
+MID   (3-8s):  preloadWindow=2, maxAttempts=30   // 24s 内完成约 3 页
+SLOW  (>8s):   preloadWindow=0, maxAttempts=20   // 禁用预加载, 翻页不卡
+
+**为什么 SLOW 阈值设在 8s？** 按实际页面 910×1290 推算 ≈ 800×1100 的 1.3 倍像素，SLOW 设备跑一页约 10s+，预加载队列只会让等待时间失控。
 ```
 
 **为什么 SLOW 必须关预加载？**
@@ -233,7 +234,7 @@ Phase 1 暂不实现，因为：
 | 决策 | 选择 | 理由 |
 |------|------|------|
 | 基准测试时机 | 用户手动触发 | 不影响首次启动体验 |
-| 测试图 | 代码合成 300×400 | 无资源依赖，够用 |
+| 测试图 | 代码合成 800×1100 | 接近真实页面，触发 tiling |
 | 分档数 | 3 档 | 再多收益递减 |
 | 配置写入 | ReaderPreferences | 与现有系统一致，用户可覆盖 |
 | preloadWindow | 运行时动态读取 | 不修改现有 ViewPager 行为 |
