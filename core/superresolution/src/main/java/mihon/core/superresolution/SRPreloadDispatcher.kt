@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
+import mihon.core.superresolution.profile.DeviceProfileManager
 import java.io.File
 
 class SRPreloadDispatcher(
@@ -15,16 +16,22 @@ class SRPreloadDispatcher(
     private val context: Context,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val preloadWindow = 2
+    private val profileManager = DeviceProfileManager(context)
     private val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
     private val preloadingPages = mutableSetOf<String>()
 
     var onPreloadRequested: ((chapterId: Long, pageIndex: Int) -> Unit)? = null
 
+    fun getPreloadWindow(): Int =
+        profileManager.getConfig()?.preloadWindow ?: 5
+
     fun onPageChanged(chapterId: Long, currentPageIndex: Int, totalPages: Int) {
         if (!manager.isReady) return
 
-        val pagesToPreload = (currentPageIndex + 1)..minOf(currentPageIndex + preloadWindow, totalPages - 1)
+        val window = getPreloadWindow()
+        if (window == 0) return
+
+        val pagesToPreload = (currentPageIndex + 1)..minOf(currentPageIndex + window, totalPages - 1)
         pagesToPreload.forEach { pageIndex ->
             val cacheKey = buildCacheKey(chapterId, pageIndex)
             synchronized(preloadingPages) {
