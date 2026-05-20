@@ -44,6 +44,9 @@ class SuperResolutionManager(
     private var modelVersion: Long = 0
 
     @Volatile
+    private var pendingModelKey: String? = null
+
+    @Volatile
     var readerOverride: Boolean = false
         private set
 
@@ -99,67 +102,62 @@ class SuperResolutionManager(
         }
     }
 
-    suspend fun switchModel(
+    fun switchModel(
         model: SRModel,
         scale: Int = 2,
         denoiseLevel: DenoiseLevel = DenoiseLevel.LIGHT,
         bwConfig: MangaBWPostProcessConfig? = null,
     ) {
-        mutex.withLock {
-            logcat(LogPriority.INFO) { "SR: switchModel called: model=${model.key}, scale=$scale, denoise=$denoiseLevel, readerOverride=$readerOverride" }
+        logcat(LogPriority.INFO) { "SR: switchModel called: model=${model.key}, scale=$scale, denoise=$denoiseLevel, readerOverride=$readerOverride" }
 
-            if (currentModel == model && currentScale == scale && currentProcessor?.isReady == true) {
-                currentDenoiseLevel = denoiseLevel
-                currentBwConfig = bwConfig
-                logcat(LogPriority.DEBUG) { "SR: Same model and scale, updating denoise/bw config" }
-                return@withLock
-            }
+        if (currentModel == model && currentScale == scale && currentProcessor?.isReady == true) {
+            currentDenoiseLevel = denoiseLevel
+            currentBwConfig = bwConfig
+            logcat(LogPriority.DEBUG) { "SR: Same model and scale, updating denoise/bw config" }
+            return
+        }
 
-            cancelAllProcessingJobs()
+        pendingModelKey = model.key
+        cancelAllProcessingJobs()
+        onModelSwitching?.invoke()
+        currentProcessor?.release()
+        currentProcessor = null
+        currentModel = model
+        currentDenoiseLevel = denoiseLevel
+        currentBwConfig = bwConfig
+        currentScale = scale
+        clearSrCache()
+        modelVersion++
+    }
 
-            onModelSwitching?.invoke()
-
-            currentProcessor?.release()
-            currentProcessor = null
-            currentModel = null
-            modelVersion++
-            clearSrCache()
-
+    suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
+        val pendingKey = pendingModelKey
+        if (pendingKey != null && currentProcessor == null) {
+            val model = SRModel.fromKey(pendingKey)
             val processor = createProcessor(model)
             val modelPath = getModelPath(model)
-
             withContext(Dispatchers.IO) {
                 try {
                     val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
                     processor.initialize(modelPath, gpuid)
                     currentProcessor = processor
                     currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
-                    logcat(LogPriority.INFO) { "SR engine switched to ${model.key}, scale=${scale}x, ready=${processor.isReady}" }
+                    logcat(LogPriority.INFO) { "SR engine loaded ${model.key}, ready=${processor.isReady}" }
                 } catch (e: UnsatisfiedLinkError) {
                     logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
                     processor.release()
                     currentProcessor = NoOpProcessor()
                     currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR) { "SR: Failed to initialize ${model.key}\n${e.asLog()}" }
                     processor.release()
                     currentProcessor = NoOpProcessor()
                     currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
                 }
             }
+            pendingModelKey = null
         }
-    }
 
-    suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
         val processor = currentProcessor
         if (processor == null || !processor.isReady) {
             logcat(LogPriority.DEBUG) { "SR: No processor ready, returning original" }
