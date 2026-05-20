@@ -79,7 +79,10 @@ import tachiyomi.presentation.core.util.shouldExpandFAB
 import tachiyomi.source.local.isLocal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
 import mihon.core.superresolution.SRDiskCache
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import java.io.File
 import java.time.Instant
 
@@ -140,6 +143,23 @@ fun MangaScreen(
         withContext(Dispatchers.IO) {
             val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
             srCompletedIds.value = diskCache.getCompletedChapters().map { it.first }.toSet()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        try {
+            val sync = Injekt.get<SuperResolutionSync>()
+            var lastCompleted = -1
+            sync.queueProcessor.state.collect { s ->
+                if (s.completedCount != lastCompleted) {
+                    lastCompleted = s.completedCount
+                    withContext(Dispatchers.IO) {
+                        val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+                        srCompletedIds.value = diskCache.getCompletedChapters().map { it.first }.toSet()
+                    }
+                }
+            }
+        } catch (_: Exception) {
         }
     }
     val onCopyTagToClipboard: (tag: String) -> Unit = {

@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "E:\\manga-super-resolution\\MangaSR-v2\\core\\superresolution\\src\\main\\cpp\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\16pro\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "E:\\manga-super-resolution\\MangaSR-v2\\core\\superresolution\\.cxx\\Debug\\5v5v1z33\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\16pro\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "E:\\manga-super-resolution\\MangaSR-v2\\core\\superresolution\\.cxx\\Debug\\5v5v1z33\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "realesrgan-ncnn-vulkan::@6890427a1f51a3e7e1df": {
+      "artifactName": "realesrgan-ncnn-vulkan",
+      "abi": "arm64-v8a",
+      "output": "E:\\manga-super-resolution\\MangaSR-v2\\core\\superresolution\\build\\intermediates\\cxx\\Debug\\5v5v1z33\\obj\\arm64-v8a\\librealesrgan-ncnn-vulkan.so",
+      "runtimeFiles": []
+    }
+  }
+}

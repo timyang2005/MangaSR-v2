@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
@@ -43,43 +47,62 @@ class SRQueueProcessor(
     private val _state = MutableStateFlow(SRQueueState())
     val state: StateFlow<SRQueueState> = _state.asStateFlow()
 
+    private val queueMutex = Mutex()
     private val queue = mutableListOf<SRQueueItem>()
     private var running = false
 
+    private val cancelledIds = mutableSetOf<Long>()
+
     init {
-        restoreQueue()
+        scope.launch { restoreQueue() }
     }
 
     fun enqueue(chapters: List<tachiyomi.domain.chapter.model.Chapter>, mangaTitle: String, sourceKey: Long) {
-        val newItems = chapters
-            .filter { c -> queue.none { it.chapterId == c.id } && !diskCache.contains(manager.buildCacheKey(c.id, 0)) }
-            .map { c -> SRQueueItem(c.id, c.mangaId, mangaTitle, c.name, sourceKey, 0, 0) }
-        if (newItems.isEmpty()) return
-        queue.addAll(newItems)
-        persist()
-        _state.value = _state.value.copy(inProgress = queue.toList())
-        ensureRunning()
+        scope.launch {
+            queueMutex.withLock {
+                val newItems = chapters
+                    .filter { c -> queue.none { it.chapterId == c.id } && !diskCache.contains(manager.buildCacheKey(c.id, 0)) }
+                    .map { c -> SRQueueItem(c.id, c.mangaId, mangaTitle, c.name, sourceKey, 0, 0) }
+                if (newItems.isEmpty()) return@withLock
+                queue.addAll(newItems)
+                persistLocked()
+                _state.value = _state.value.copy(inProgress = queue.toList())
+            }
+            ensureRunning()
+        }
     }
 
     fun cancel(chapterId: Long) {
-        queue.removeAll { it.chapterId == chapterId }
-        persist()
-        _state.value = _state.value.copy(inProgress = queue.toList())
+        scope.launch {
+            queueMutex.withLock {
+                cancelledIds.add(chapterId)
+                queue.removeAll { it.chapterId == chapterId }
+                persistLocked()
+                _state.value = _state.value.copy(inProgress = queue.toList())
+            }
+        }
     }
 
     fun cancelAll() {
-        queue.clear()
-        persist()
-        _state.value = _state.value.copy(inProgress = emptyList())
+        scope.launch {
+            queueMutex.withLock {
+                cancelledIds.addAll(queue.map { it.chapterId })
+                queue.clear()
+                persistLocked()
+                _state.value = _state.value.copy(inProgress = emptyList())
+            }
+        }
     }
 
-    private fun restoreQueue() {
-        queue.addAll(queueStore.load())
-        _state.value = _state.value.copy(inProgress = queue.toList())
-        if (queue.isNotEmpty()) ensureRunning()
+    private suspend fun restoreQueue() {
+        queueMutex.withLock {
+            queue.addAll(queueStore.load())
+            _state.value = _state.value.copy(inProgress = queue.toList())
+            if (queue.isNotEmpty()) ensureRunning()
+        }
     }
 
-    private fun persist() {
+    private fun persistLocked() {
         queueStore.save(queue.toList())
     }
 
@@ -90,17 +113,23 @@ class SRQueueProcessor(
     }
 
     private suspend fun runLoop() {
-        while (queue.isNotEmpty()) {
-            val item = queue.first()
-            _state.value = _state.value.copy(inProgress = queue.toList())
+        while (true) {
+            val item: SRQueueItem
+            queueMutex.withLock {
+                if (queue.isEmpty()) {
+                    running = false
+                    return
+                }
+                item = queue.first()
+                _state.value = _state.value.copy(inProgress = queue.toList())
+            }
 
             val chapter = runCatching { getChapter.await(item.chapterId) }.getOrNull()
             val manga = runCatching { getManga.await(item.mangaId) }.getOrNull()
             val source = manga?.let { sourceManager.get(it.source) }
             if (chapter == null || manga == null || source == null) {
                 logcat(LogPriority.ERROR) { "SR: Queue item missing data, skipping ch${item.chapterId}" }
-                queue.removeFirst()
-                persist()
+                queueMutex.withLock { queue.removeFirst(); persistLocked() }
                 continue
             }
 
@@ -111,8 +140,7 @@ class SRQueueProcessor(
 
             if (chapterDir == null || chapterDir.isFile) {
                 logcat(LogPriority.WARN) { "SR: Chapter dir not found or is archive, skipping ch${item.chapterId}" }
-                queue.removeFirst()
-                persist()
+                queueMutex.withLock { queue.removeFirst(); persistLocked() }
                 continue
             }
 
@@ -122,16 +150,15 @@ class SRQueueProcessor(
 
             if (files.isEmpty()) {
                 logcat(LogPriority.WARN) { "SR: No image files found in ch${item.chapterId}" }
-                queue.removeFirst()
-                persist()
+                queueMutex.withLock { queue.removeFirst(); persistLocked() }
                 continue
             }
 
-            val updatedItem = item.copy(totalPages = files.size)
-            var processed = 0
             val version = manager.currentModelVersion()
+            var processed = 0
 
             for (uniFile in files) {
+                currentCoroutineContext().ensureActive()
                 val pageIndex = processed
                 val cacheKey = manager.buildCacheKey(item.chapterId, pageIndex)
                 if (diskCache.get(cacheKey) != null) {
@@ -140,48 +167,58 @@ class SRQueueProcessor(
                     continue
                 }
 
+                var input: Bitmap? = null
+                var result: Bitmap? = null
                 try {
-                    val input = uniFile.openInputStream().use { stream ->
+                    input = uniFile.openInputStream().use { stream ->
                         BitmapFactory.decodeStream(stream)
                     }
                     if (input != null) {
-                        val result = manager.process(input, version)
+                        result = manager.process(input, version)
                         if (result !== input) {
                             diskCache.put(cacheKey, result)
                         }
-                        input.recycle()
-                        if (result !== input) result.recycle()
                     }
                 } catch (e: Exception) {
                     logcat(LogPriority.ERROR) { "SR: Failed to process page $pageIndex ch${item.chapterId}\n${e.asLog()}" }
+                } finally {
+                    input?.recycle()
+                    if (result != null && result !== input) result.recycle()
                 }
                 processed++
                 updateProgress(item.copy(processedPages = processed))
             }
 
+            queueMutex.withLock {
+                if (item.chapterId in cancelledIds) {
+                    cancelledIds.remove(item.chapterId)
+                    logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} was cancelled, skipping metadata" }
+                    return@withLock
+                }
+                queue.removeFirst()
+                persistLocked()
+                _state.value = _state.value.copy(
+                    inProgress = queue.toList(),
+                    completedCount = _state.value.completedCount + 1,
+                )
+            }
             diskCache.putChapterMetadata(item.chapterId, ChapterMetadata(
                 mangaId = item.mangaId,
                 mangaTitle = item.mangaTitle,
                 chapterName = item.chapterName,
                 pageCount = files.size,
             ))
-
-            queue.removeFirst()
-            persist()
-            _state.value = _state.value.copy(
-                inProgress = queue.toList(),
-                completedCount = _state.value.completedCount + 1,
-            )
         }
-        running = false
     }
 
-    private fun updateProgress(item: SRQueueItem) {
-        val idx = queue.indexOfFirst { it.chapterId == item.chapterId }
-        if (idx >= 0) {
-            queue[idx] = item
-            persist()
-            _state.value = _state.value.copy(inProgress = queue.toList())
+    private suspend fun updateProgress(item: SRQueueItem) {
+        queueMutex.withLock {
+            val idx = queue.indexOfFirst { it.chapterId == item.chapterId }
+            if (idx >= 0) {
+                queue[idx] = item
+                persistLocked()
+                _state.value = _state.value.copy(inProgress = queue.toList())
+            }
         }
     }
 }

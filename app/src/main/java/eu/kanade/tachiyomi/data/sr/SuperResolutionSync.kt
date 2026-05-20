@@ -30,7 +30,11 @@ class SuperResolutionSync(
     lateinit var queueProcessor: SRQueueProcessor
         private set
 
+    private var started = false
+
     fun start() {
+        if (started) return
+        started = true
         logcat(LogPriority.INFO) { "SR: SuperResolutionSync starting" }
 
         val context = Injekt.get<Application>()
