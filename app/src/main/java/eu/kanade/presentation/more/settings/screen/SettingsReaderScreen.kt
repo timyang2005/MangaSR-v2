@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.DialogInterface
 import android.widget.Toast
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
@@ -41,6 +42,36 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import eu.kanade.tachiyomi.data.sr.SRQueueProcessor
+import eu.kanade.tachiyomi.data.sr.SRQueueState
+import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
+import mihon.core.superresolution.ChapterMetadata
+import mihon.core.superresolution.SRDiskCache
+import java.io.File
 import java.text.NumberFormat
 
 object SettingsReaderScreen : SearchableSettings {
@@ -460,6 +491,13 @@ object SettingsReaderScreen : SearchableSettings {
         val scope = rememberCoroutineScope()
         val srLogUtil = remember { SRLogUtil(context) }
 
+        var showQueueDialog by remember { mutableStateOf(false) }
+        val srSync = remember { Injekt.get<SuperResolutionSync>() }
+        val queueState by srSync.queueProcessor.state.collectAsState()
+        val inProgressCount = queueState.inProgress.size
+        val completedCount = queueState.completedCount
+        var completedChapters by remember { mutableStateOf<List<Pair<Long, ChapterMetadata>>>(emptyList()) }
+
         // i18n strings
         val exportLogsTitle = stringResource(MR.strings.pref_sr_export_logs)
         val exportLogsSummary = stringResource(MR.strings.pref_sr_export_logs_summary)
@@ -478,7 +516,6 @@ object SettingsReaderScreen : SearchableSettings {
                 stringResource(MR.strings.pref_sr_clear_cache_usage, size)
             }
         } ?: clearCacheSummaryDefault
-        val benchmarkNotReady = stringResource(MR.strings.pref_sr_benchmark_not_ready)
         val tierFast = stringResource(MR.strings.pref_sr_benchmark_tier_fast)
         val tierMid = stringResource(MR.strings.pref_sr_benchmark_tier_mid)
         val tierSlow = stringResource(MR.strings.pref_sr_benchmark_tier_slow)
@@ -494,7 +531,7 @@ object SettingsReaderScreen : SearchableSettings {
         val closeButton = stringResource(MR.strings.pref_sr_benchmark_dialog_close)
         val toastApplied = stringResource(MR.strings.pref_sr_benchmark_applied)
 
-        return Preference.PreferenceGroup(
+        val group = Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_sr_enabled),
             preferenceItems = persistentListOf(
                 Preference.PreferenceItem.SwitchPreference(
@@ -526,8 +563,7 @@ object SettingsReaderScreen : SearchableSettings {
                             val ctx = context
                             val manager = Injekt.get<SuperResolutionManager>()
                             if (!manager.isReady) {
-                                Toast.makeText(ctx, benchmarkNotReady, Toast.LENGTH_SHORT).show()
-                                return@launch
+                                withContext(Dispatchers.Default) { manager.ensureModelLoaded() }
                             }
                             val benchmark = SRBenchmark(manager)
                             val result = withContext(Dispatchers.Default) {
@@ -564,8 +600,46 @@ object SettingsReaderScreen : SearchableSettings {
                         }
                     },
                 ),
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(MR.strings.pref_sr_batch_queue),
+                    subtitle = stringResource(MR.strings.pref_sr_batch_queue_summary, inProgressCount, completedCount),
+                    onClick = { showQueueDialog = true },
+                ),
             ),
         )
+
+        if (showQueueDialog) {
+            SRQueueDialog(
+                state = queueState,
+                completedChapters = completedChapters,
+                onDismiss = { showQueueDialog = false },
+                onCancel = { chapterId ->
+                    srSync.queueProcessor.cancel(chapterId)
+                },
+                onDeleteCompleted = { chapterIds ->
+                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+                    chapterIds.forEach { diskCache.removeChapter(it) }
+                    completedChapters = completedChapters.filter { (id, _) -> id !in chapterIds }
+                },
+                onClearAll = {
+                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+                    completedChapters.forEach { (id, _) -> diskCache.removeChapter(id) }
+                    completedChapters = emptyList()
+                },
+            )
+        }
+
+        // Load completed chapters on dialog open
+        LaunchedEffect(showQueueDialog) {
+            if (showQueueDialog) {
+                withContext(Dispatchers.IO) {
+                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+                    completedChapters = diskCache.getCompletedChapters()
+                }
+            }
+        }
+
+        return group
     }
 
     private fun showBenchmarkResultDialog(
@@ -624,5 +698,138 @@ object SettingsReaderScreen : SearchableSettings {
             }
             .setNegativeButton(closeButton, null)
             .show()
+    }
+
+    @Composable
+    private fun SRQueueDialog(
+        state: SRQueueState,
+        completedChapters: List<Pair<Long, ChapterMetadata>>,
+        onDismiss: () -> Unit,
+        onCancel: (Long) -> Unit,
+        onDeleteCompleted: (List<Long>) -> Unit,
+        onClearAll: () -> Unit,
+    ) {
+        val selectedForDelete = remember { mutableStateListOf<Long>() }
+        val selectedAll = remember(completedChapters) {
+            derivedStateOf { selectedForDelete.size == completedChapters.size && completedChapters.isNotEmpty() }
+        }
+
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(MR.strings.pref_sr_batch_queue)) },
+            text = {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp),
+                ) {
+                    // In-progress section header
+                    item {
+                        Text(
+                            text = stringResource(MR.strings.sr_queue_in_progress),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    if (state.inProgress.isEmpty()) {
+                        item { Text("None", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
+                    } else {
+                        items(state.inProgress, key = { it.chapterId }) { item ->
+                            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                                Text(
+                                    text = "${item.mangaTitle} ${item.chapterName}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                LinearProgressIndicator(
+                                    progress = { if (item.totalPages > 0) item.processedPages.toFloat() / item.totalPages else 0f },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    // Completed section header
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(MR.strings.sr_queue_completed),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            if (completedChapters.isNotEmpty()) {
+                                TextButton(onClick = {
+                                    if (selectedAll.value) selectedForDelete.clear()
+                                    else selectedForDelete.addAll(completedChapters.map { it.first })
+                                }) {
+                                    Text(if (selectedAll.value) "Deselect All" else "Select All")
+                                }
+                            }
+                        }
+                    }
+                    if (completedChapters.isEmpty()) {
+                        item { Text("None", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
+                    } else {
+                        val grouped = completedChapters.groupBy { (_, meta) -> meta.mangaTitle }
+                        grouped.forEach { (mangaTitle, chapters) ->
+                            item {
+                                Text(
+                                    text = mangaTitle,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                                )
+                            }
+                            items(chapters, key = { it.first }) { (chapterId, meta) ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Checkbox(
+                                        checked = chapterId in selectedForDelete,
+                                        onCheckedChange = { checked ->
+                                            if (checked) selectedForDelete.add(chapterId)
+                                            else selectedForDelete.remove(chapterId)
+                                        },
+                                    )
+                                    Text(
+                                        text = "${meta.chapterName} · ${meta.pageCount} pages",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            onClearAll()
+                            selectedForDelete.clear()
+                        },
+                        enabled = completedChapters.isNotEmpty(),
+                    ) {
+                        Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(stringResource(MR.strings.sr_queue_clear_all))
+                    }
+                    TextButton(
+                        onClick = {
+                            onDeleteCompleted(selectedForDelete.toList())
+                            selectedForDelete.clear()
+                        },
+                        enabled = selectedForDelete.isNotEmpty(),
+                    ) {
+                        Text(stringResource(MR.strings.sr_queue_delete_selected))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(MR.strings.action_close))
+                }
+            },
+        )
     }
 }

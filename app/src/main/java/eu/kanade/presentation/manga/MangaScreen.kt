@@ -30,9 +30,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.animateFloatingActionButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,6 +77,10 @@ import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.shouldExpandFAB
 import tachiyomi.source.local.isLocal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import mihon.core.superresolution.SRDiskCache
+import java.io.File
 import java.time.Instant
 
 @Composable
@@ -117,6 +123,7 @@ fun MangaScreen(
     onMultiMarkAsReadClicked: (List<Chapter>, markAsRead: Boolean) -> Unit,
     onMarkPreviousAsReadClicked: (Chapter) -> Unit,
     onMultiDeleteClicked: (List<Chapter>) -> Unit,
+    onBatchSrClicked: (() -> Unit)? = null,
 
     // For chapter swipe
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
@@ -127,6 +134,14 @@ fun MangaScreen(
     onInvertSelection: () -> Unit,
 ) {
     val context = LocalContext.current
+    val srCompletedIds = remember { mutableStateOf<Set<Long>>(emptySet()) }
+
+    LaunchedEffect(state.manga.id) {
+        withContext(Dispatchers.IO) {
+            val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+            srCompletedIds.value = diskCache.getCompletedChapters().map { it.first }.toSet()
+        }
+    }
     val onCopyTagToClipboard: (tag: String) -> Unit = {
         if (it.isNotEmpty()) {
             context.copyToClipboard(it, it)
@@ -140,6 +155,7 @@ fun MangaScreen(
             nextUpdate = nextUpdate,
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
+            srCompletedIds = srCompletedIds.value,
             navigateUp = navigateUp,
             onChapterClicked = onChapterClicked,
             onDownloadChapter = onDownloadChapter,
@@ -164,6 +180,7 @@ fun MangaScreen(
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
             onMultiDeleteClicked = onMultiDeleteClicked,
+            onBatchSrClicked = onBatchSrClicked,
             onChapterSwipe = onChapterSwipe,
             onChapterSelected = onChapterSelected,
             onAllChapterSelected = onAllChapterSelected,
@@ -175,6 +192,7 @@ fun MangaScreen(
             snackbarHostState = snackbarHostState,
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
+            srCompletedIds = srCompletedIds.value,
             nextUpdate = nextUpdate,
             navigateUp = navigateUp,
             onChapterClicked = onChapterClicked,
@@ -200,6 +218,7 @@ fun MangaScreen(
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
             onMultiDeleteClicked = onMultiDeleteClicked,
+            onBatchSrClicked = onBatchSrClicked,
             onChapterSwipe = onChapterSwipe,
             onChapterSelected = onChapterSelected,
             onAllChapterSelected = onAllChapterSelected,
@@ -215,6 +234,7 @@ private fun MangaScreenSmallImpl(
     nextUpdate: Instant?,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
+    srCompletedIds: Set<Long>,
     navigateUp: () -> Unit,
     onChapterClicked: (Chapter) -> Unit,
     onDownloadChapter: ((List<ChapterList.Item>, ChapterDownloadAction) -> Unit)?,
@@ -248,6 +268,7 @@ private fun MangaScreenSmallImpl(
     onMultiMarkAsReadClicked: (List<Chapter>, markAsRead: Boolean) -> Unit,
     onMarkPreviousAsReadClicked: (Chapter) -> Unit,
     onMultiDeleteClicked: (List<Chapter>) -> Unit,
+    onBatchSrClicked: (() -> Unit)? = null,
 
     // For chapter swipe
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
@@ -320,6 +341,7 @@ private fun MangaScreenSmallImpl(
                 onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
                 onDownloadChapter = onDownloadChapter,
                 onMultiDeleteClicked = onMultiDeleteClicked,
+                onBatchSrClicked = onBatchSrClicked,
                 fillFraction = 1f,
             )
         },
@@ -439,6 +461,7 @@ private fun MangaScreenSmallImpl(
                         isAnyChapterSelected = chapters.fastAny { it.selected },
                         chapterSwipeStartAction = chapterSwipeStartAction,
                         chapterSwipeEndAction = chapterSwipeEndAction,
+                        srCompletedIds = srCompletedIds,
                         onChapterClicked = onChapterClicked,
                         onDownloadChapter = onDownloadChapter,
                         onChapterSelected = onChapterSelected,
@@ -457,6 +480,7 @@ fun MangaScreenLargeImpl(
     nextUpdate: Instant?,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
+    srCompletedIds: Set<Long>,
     navigateUp: () -> Unit,
     onChapterClicked: (Chapter) -> Unit,
     onDownloadChapter: ((List<ChapterList.Item>, ChapterDownloadAction) -> Unit)?,
@@ -490,6 +514,7 @@ fun MangaScreenLargeImpl(
     onMultiMarkAsReadClicked: (List<Chapter>, markAsRead: Boolean) -> Unit,
     onMarkPreviousAsReadClicked: (Chapter) -> Unit,
     onMultiDeleteClicked: (List<Chapter>) -> Unit,
+    onBatchSrClicked: (() -> Unit)? = null,
 
     // For swipe actions
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
@@ -559,6 +584,7 @@ fun MangaScreenLargeImpl(
                     onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
                     onDownloadChapter = onDownloadChapter,
                     onMultiDeleteClicked = onMultiDeleteClicked,
+                    onBatchSrClicked = onBatchSrClicked,
                     fillFraction = 0.5f,
                 )
             }
@@ -676,6 +702,7 @@ fun MangaScreenLargeImpl(
                                 isAnyChapterSelected = chapters.fastAny { it.selected },
                                 chapterSwipeStartAction = chapterSwipeStartAction,
                                 chapterSwipeEndAction = chapterSwipeEndAction,
+                                srCompletedIds = srCompletedIds,
                                 onChapterClicked = onChapterClicked,
                                 onDownloadChapter = onDownloadChapter,
                                 onChapterSelected = onChapterSelected,
@@ -697,6 +724,7 @@ private fun SharedMangaBottomActionMenu(
     onMarkPreviousAsReadClicked: (Chapter) -> Unit,
     onDownloadChapter: ((List<ChapterList.Item>, ChapterDownloadAction) -> Unit)?,
     onMultiDeleteClicked: (List<Chapter>) -> Unit,
+    onBatchSrClicked: (() -> Unit)? = null,
     fillFraction: Float,
     modifier: Modifier = Modifier,
 ) {
@@ -728,6 +756,9 @@ private fun SharedMangaBottomActionMenu(
         }.takeIf {
             selected.fastAny { it.downloadState == Download.State.DOWNLOADED }
         },
+        onBatchSrClicked = onBatchSrClicked.takeIf {
+            selected.isNotEmpty() && selected.fastAll { it.downloadState == Download.State.DOWNLOADED }
+        },
     )
 }
 
@@ -737,6 +768,7 @@ private fun LazyListScope.sharedChapterItems(
     isAnyChapterSelected: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
+    srCompletedIds: Set<Long> = emptySet(),
     onChapterClicked: (Chapter) -> Unit,
     onDownloadChapter: ((List<ChapterList.Item>, ChapterDownloadAction) -> Unit)?,
     onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
@@ -784,6 +816,7 @@ private fun LazyListScope.sharedChapterItems(
                     downloadIndicatorEnabled = !isAnyChapterSelected && !manga.isLocal(),
                     downloadStateProvider = { item.downloadState },
                     downloadProgressProvider = { item.downloadProgress },
+                    hasSrCache = item.chapter.id in srCompletedIds,
                     chapterSwipeStartAction = chapterSwipeStartAction,
                     chapterSwipeEndAction = chapterSwipeEndAction,
                     onLongClick = {

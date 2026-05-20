@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -35,7 +36,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.model.Download
 import me.saket.swipe.SwipeableActionsBox
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -57,6 +60,7 @@ fun MangaChapterListItem(
     downloadIndicatorEnabled: Boolean,
     downloadStateProvider: () -> Download.State,
     downloadProgressProvider: () -> Int,
+    hasSrCache: Boolean = false,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
     onLongClick: () -> Unit,
@@ -171,6 +175,14 @@ fun MangaChapterListItem(
                 }
             }
 
+            if (hasSrCache) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_sr_sparkle_24dp),
+                    contentDescription = "SR",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
             ChapterDownloadIndicator(
                 enabled = downloadIndicatorEnabled,
                 modifier = Modifier.padding(start = 4.dp),

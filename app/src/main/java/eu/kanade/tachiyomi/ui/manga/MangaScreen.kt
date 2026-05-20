@@ -166,6 +166,9 @@ class MangaScreen(
             onMultiMarkAsReadClicked = screenModel::markChaptersRead,
             onMarkPreviousAsReadClicked = screenModel::markPreviousChapterRead,
             onMultiDeleteClicked = screenModel::showDeleteChapterDialog,
+            onBatchSrClicked = {
+                screenModel.batchSrChapters(successState.chapters.filter { it.selected }.map { it.chapter })
+            },
             onChapterSwipe = screenModel::chapterSwipe,
             onChapterSelected = screenModel::toggleSelection,
             onAllChapterSelected = screenModel::toggleAllSelection,

@@ -54,6 +54,54 @@ class SRDiskCache(
         getFile(key).delete()
     }
 
+    fun contains(key: String): Boolean = getFile(key).exists()
+
+    fun putChapterMetadata(chapterId: Long, meta: ChapterMetadata) {
+        val json = org.json.JSONObject().apply {
+            put("mangaId", meta.mangaId)
+            put("mangaTitle", meta.mangaTitle)
+            put("chapterName", meta.chapterName)
+            put("pageCount", meta.pageCount)
+        }.toString()
+        val file = File(cacheDir, "_ch_${chapterId}.json")
+        try {
+            file.writeText(json)
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) { "SR: Failed to write chapter metadata for $chapterId\n${e.asLog()}" }
+        }
+    }
+
+    fun getCompletedChapters(): List<Pair<Long, ChapterMetadata>> {
+        return cacheDir.listFiles()
+            ?.filter { it.name.startsWith("_ch_") && it.extension == "json" }
+            ?.mapNotNull { file ->
+                val chapterId = file.nameWithoutExtension.removePrefix("_ch_").toLongOrNull()
+                if (chapterId == null) {
+                    logcat(LogPriority.WARN) { "SR: Invalid metadata filename ${file.name}" }
+                    null
+                } else {
+                    try {
+                        val json = org.json.JSONObject(file.readText())
+                        chapterId to ChapterMetadata(
+                            mangaId = json.getLong("mangaId"),
+                            mangaTitle = json.getString("mangaTitle"),
+                            chapterName = json.getString("chapterName"),
+                            pageCount = json.getInt("pageCount"),
+                        )
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR) { "SR: Failed to parse metadata ${file.name}\n${e.asLog()}" }
+                        null
+                    }
+                }
+            } ?: emptyList()
+    }
+
+    fun removeChapter(chapterId: Long) {
+        cacheDir.listFiles { _, name ->
+            name.startsWith("page_${chapterId}_") || name == "_ch_${chapterId}.json"
+        }?.forEach { it.delete() }
+    }
+
     fun getUsage(): Pair<Int, Long> {
         val files = cacheDir.listFiles()
         return (files?.size ?: 0) to (files?.sumOf { it.length() } ?: 0L)
@@ -65,7 +113,7 @@ class SRDiskCache(
         logcat(LogPriority.INFO) { "SR: Cleared disk cache ($count files, ${bytes / 1024}KB)" }
     }
 
-    private fun getFile(key: String): File {
+    internal fun getFile(key: String): File {
         val safeKey = key.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
         val ext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) "webp" else "jpg"
         return File(cacheDir, "$safeKey.$ext")
@@ -73,7 +121,7 @@ class SRDiskCache(
 
     private fun evictIfNeeded() {
         evictScope.launch {
-            val files = cacheDir.listFiles() ?: return@launch
+            val files = cacheDir.listFiles()?.filter { !it.name.startsWith("_ch_") }?.toMutableList() ?: return@launch
             var totalSize = files.sumOf { it.length() }
             if (totalSize <= maxCacheSizeBytes) return@launch
             files.sortByDescending { it.lastModified() }

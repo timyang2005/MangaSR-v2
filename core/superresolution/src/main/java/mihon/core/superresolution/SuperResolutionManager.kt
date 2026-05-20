@@ -135,35 +135,48 @@ class SuperResolutionManager(
         modelVersion++
     }
 
-    suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
-        val pendingKey = pendingModelKey
-        if (pendingKey != null && currentProcessor == null) {
-            val model = SRModel.fromKey(pendingKey)
-            val processor = createProcessor(model)
-            val modelPath = getModelPath(model)
-            withContext(Dispatchers.IO) {
-                try {
-                    val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
-                    val loadStart = System.currentTimeMillis()
-                    processor.initialize(modelPath, gpuid)
-                    val loadElapsed = System.currentTimeMillis() - loadStart
-                    currentProcessor = processor
-                    currentModel = model
-                    logcat(LogPriority.INFO) { "SR: ${model.key} loaded in ${loadElapsed}ms, ready=${processor.isReady}" }
-                } catch (e: UnsatisfiedLinkError) {
-                    logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
-                    processor.release()
-                    currentProcessor = NoOpProcessor()
-                    currentModel = model
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR) { "SR: Failed to initialize ${model.key}\n${e.asLog()}" }
-                    processor.release()
-                    currentProcessor = NoOpProcessor()
-                    currentModel = model
+    private val loadMutex = Mutex()
+
+    suspend fun ensureModelLoaded() {
+        if (pendingModelKey != null && currentProcessor == null) {
+            loadMutex.withLock {
+                if (pendingModelKey != null && currentProcessor == null) {
+                    loadPendingModel()
                 }
             }
-            pendingModelKey = null
         }
+    }
+
+    private suspend fun loadPendingModel() {
+        val model = SRModel.fromKey(pendingModelKey!!)
+        val processor = createProcessor(model)
+        val modelPath = getModelPath(model)
+        withContext(Dispatchers.IO) {
+            try {
+                val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
+                val loadStart = System.currentTimeMillis()
+                processor.initialize(modelPath, gpuid)
+                val loadElapsed = System.currentTimeMillis() - loadStart
+                currentProcessor = processor
+                currentModel = model
+                logcat(LogPriority.INFO) { "SR: ${model.key} loaded in ${loadElapsed}ms, ready=${processor.isReady}" }
+            } catch (e: UnsatisfiedLinkError) {
+                logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
+                processor.release()
+                currentProcessor = NoOpProcessor()
+                currentModel = model
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) { "SR: Failed to initialize ${model.key}\n${e.asLog()}" }
+                processor.release()
+                currentProcessor = NoOpProcessor()
+                currentModel = model
+            }
+        }
+        pendingModelKey = null
+    }
+
+    suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
+        ensureModelLoaded()
 
         val processor = currentProcessor
         if (processor == null || !processor.isReady) {

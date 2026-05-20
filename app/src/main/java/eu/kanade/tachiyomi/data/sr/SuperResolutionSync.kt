@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.data.sr
 
+import android.app.Application
+import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,9 +14,12 @@ import logcat.logcat
 import mihon.core.superresolution.DenoiseLevel
 import mihon.core.superresolution.NativeLibraryStatus
 import mihon.core.superresolution.SRModel
+import mihon.core.superresolution.SRDiskCache
+import mihon.core.superresolution.SRQueueStore
 import mihon.core.superresolution.SuperResolutionManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.File
 
 class SuperResolutionSync(
     private val preferences: ReaderPreferences = Injekt.get(),
@@ -22,8 +27,18 @@ class SuperResolutionSync(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    lateinit var queueProcessor: SRQueueProcessor
+        private set
+
     fun start() {
         logcat(LogPriority.INFO) { "SR: SuperResolutionSync starting" }
+
+        val context = Injekt.get<Application>()
+        val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+        val queueStore = SRQueueStore(context)
+        val downloadProvider = Injekt.get<DownloadProvider>()
+        queueProcessor = SRQueueProcessor(manager, diskCache, queueStore, downloadProvider)
+
         scope.launch {
             combine(
                 preferences.srEnabled.changes(),

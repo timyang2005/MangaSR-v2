@@ -982,4 +982,10 @@
     <string name="pref_sr_benchmark_dialog_apply">应用推荐配置</string>
     <string name="pref_sr_benchmark_dialog_close">关闭</string>
     <string name="pref_sr_benchmark_applied">预加载窗口已设为 %1$d</string>
+    <string name="pref_sr_batch_queue">批量超分队列</string>
+    <string name="pref_sr_batch_queue_summary">%1$d 个处理中 · %2$d 个已完成</string>
+    <string name="sr_queue_in_progress">进行中</string>
+    <string name="sr_queue_completed">已完成</string>
+    <string name="sr_queue_delete_selected">删除选中</string>
+    <string name="sr_queue_clear_all">清空全部</string>
 </resources>

@@ -1121,4 +1121,14 @@
     <string name="donationCampaign.paragraph3">Regardless, Mihon will continue to be maintained by me and the volunteers, and it will stay open source.</string>
     <string name="donationCampaign.contactPlatform">Discord</string>
     <string name="donationCampaign.dismiss">Dismiss</string>
+
+    <!-- Super-resolution -->
+    <string name="action_sr_batch">超分</string>
+    <string name="sr_batch_enqueued">%d chapters added to SR queue</string>
+    <string name="pref_sr_batch_queue">Batch SR Queue</string>
+    <string name="pref_sr_batch_queue_summary">%1$d processing · %2$d completed</string>
+    <string name="sr_queue_in_progress">Processing</string>
+    <string name="sr_queue_completed">Completed</string>
+    <string name="sr_queue_delete_selected">Delete selected</string>
+    <string name="sr_queue_clear_all">Clear all</string>
 </resources>
