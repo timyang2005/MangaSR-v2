@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import logcat.asLog
 import logcat.logcat
 import mihon.core.superresolution.SRPreloadDispatcher
 import mihon.core.superresolution.SRStatus
@@ -40,15 +41,30 @@ class SuperResolutionInterceptor(
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
         val result = chain.proceed()
 
-        if (!chain.request.superResolution) return result
-        if (!manager.isReady) return result
+        if (!chain.request.superResolution) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - not enabled for this request" }
+            return result
+        }
+        if (!manager.isReady) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - manager not ready" }
+            return result
+        }
         if (result !is SuccessResult) return result
 
         val bitmap = (result.image as? coil3.BitmapImage)?.bitmap
-        if (bitmap == null) return result
+        if (bitmap == null) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - bitmap is null" }
+            return result
+        }
 
-        if (bitmap.width < MIN_SR_INPUT_WIDTH || bitmap.height < MIN_SR_INPUT_HEIGHT) return result
-        if (bitmap.width > MAX_SR_INPUT_SIZE || bitmap.height > MAX_SR_INPUT_SIZE) return result
+        if (bitmap.width < MIN_SR_INPUT_WIDTH || bitmap.height < MIN_SR_INPUT_HEIGHT) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - bitmap too small ${bitmap.width}x${bitmap.height}" }
+            return result
+        }
+        if (bitmap.width > MAX_SR_INPUT_SIZE || bitmap.height > MAX_SR_INPUT_SIZE) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - bitmap too large ${bitmap.width}x${bitmap.height}" }
+            return result
+        }
 
         val pageIndex = chain.request.pageIndex
         val chapterId = chain.request.chapterId
@@ -60,7 +76,7 @@ class SuperResolutionInterceptor(
         }
 
         val cacheKey = if (pageIndex >= 0 && chapterId >= 0) {
-            "page_${chapterId}_${pageIndex}_${manager.activeModel?.key ?: "unknown"}_${manager.activeScale}"
+            manager.buildCacheKey(chapterId, pageIndex)
         } else if (pageIndex >= 0) {
             "page_${pageIndex}_${manager.activeModel?.key ?: "unknown"}_${manager.activeScale}"
         } else {
@@ -73,7 +89,10 @@ class SuperResolutionInterceptor(
         }
 
         synchronized(processingKeys) {
-            if (cacheKey in processingKeys) return result
+            if (cacheKey in processingKeys) {
+                logcat(LogPriority.DEBUG) { "SR: Skipped - duplicate processing key $cacheKey" }
+                return result
+            }
             processingKeys.add(cacheKey)
         }
 
@@ -82,14 +101,17 @@ class SuperResolutionInterceptor(
                 withContext(Dispatchers.Default) {
                     bitmap.copy(Bitmap.Config.ARGB_8888, false)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                logcat(LogPriority.DEBUG) { "SR: Skipped - HW to ARGB conversion failed: ${e.message}" }
                 synchronized(processingKeys) { processingKeys.remove(cacheKey) }
                 return result
             } ?: run {
+                logcat(LogPriority.DEBUG) { "SR: Skipped - HW to ARGB conversion returned null" }
                 synchronized(processingKeys) { processingKeys.remove(cacheKey) }
                 return result
             }
         } else if (bitmap.config != Bitmap.Config.ARGB_8888) {
+            logcat(LogPriority.DEBUG) { "SR: Skipped - unexpected config ${bitmap.config}" }
             synchronized(processingKeys) { processingKeys.remove(cacheKey) }
             return result
         } else {
@@ -112,12 +134,12 @@ class SuperResolutionInterceptor(
                         preloadDispatcher.putSrResult(chapterId, pageIndex, srBitmap)
                     }
                     srResultFlow.emit(SRResult(chapterId, pageIndex, srBitmap))
-                    logcat(LogPriority.INFO) {
+                    logcat(LogPriority.DEBUG) {
                         "SR: Cached ch$chapterId p$pageIndex ${inputBitmap.width}x${inputBitmap.height} -> ${srBitmap.width}x${srBitmap.height} in ${elapsed}ms"
                     }
                 }
             } catch (e: Exception) {
-                logcat(LogPriority.ERROR) { "SR: Background processing failed: ${e.message}" }
+                logcat(LogPriority.ERROR) { "SR: Background processing failed\n${e.asLog()}" }
             } finally {
                 if (inputBitmap !== bitmap) inputBitmap.recycle()
                 synchronized(processingKeys) { processingKeys.remove(key) }

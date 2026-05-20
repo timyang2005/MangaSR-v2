@@ -96,7 +96,6 @@ class SuperResolutionManager(
 
     private fun cancelAllProcessingJobs() {
         synchronized(jobsMutex) {
-            logcat(LogPriority.INFO) { "SR: Cancelling ${processingJobs.size} processing jobs" }
             processingJobs.forEach { it.cancel() }
             processingJobs.clear()
         }
@@ -139,10 +138,12 @@ class SuperResolutionManager(
             withContext(Dispatchers.IO) {
                 try {
                     val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
+                    val loadStart = System.currentTimeMillis()
                     processor.initialize(modelPath, gpuid)
+                    val loadElapsed = System.currentTimeMillis() - loadStart
                     currentProcessor = processor
                     currentModel = model
-                    logcat(LogPriority.INFO) { "SR engine loaded ${model.key}, ready=${processor.isReady}" }
+                    logcat(LogPriority.INFO) { "SR: ${model.key} loaded in ${loadElapsed}ms, ready=${processor.isReady}" }
                 } catch (e: UnsatisfiedLinkError) {
                     logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
                     processor.release()
@@ -232,6 +233,11 @@ class SuperResolutionManager(
 
     private fun getModelPath(model: SRModel): String {
         return File(context.filesDir, "models/${model.modelDirName}").absolutePath
+    }
+
+    fun buildCacheKey(chapterId: Long, pageIndex: Int): String {
+        val modelKey = activeModel?.key ?: "unknown"
+        return "page_${chapterId}_${pageIndex}_${modelKey}_${activeScale}"
     }
 
     fun ensureModelsExtracted() {

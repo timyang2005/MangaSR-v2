@@ -221,12 +221,12 @@ open class ReaderPageImageView @JvmOverloads constructor(
             }
         }
         srRefreshRunnable = runnable
+        logcat(LogPriority.DEBUG) { "SR: Polling start ch$chId p${page.index}" }
         postDelayed(runnable, 0)
     }
 
-    private fun buildSrCacheKey(chapterId: Long, pageIndex: Int, manager: SuperResolutionManager): String {
-        return "page_${chapterId}_${pageIndex}_${manager.activeModel?.key}_${manager.activeScale}"
-    }
+    private fun buildSrCacheKey(chapterId: Long, pageIndex: Int, manager: SuperResolutionManager): String =
+        manager.buildCacheKey(chapterId, pageIndex)
 
     private fun cancelSrRefresh() {
         srRefreshRunnable?.let { removeCallbacks(it) }
@@ -335,16 +335,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 isVisible = true
             }
             is BufferedSource -> {
+                val pageIdx = readerPage?.index ?: -1
+                val chId = readerPage?.chapter?.chapter?.id ?: -1L
                 val srManager = Injekt.get<SuperResolutionManager>()
                 if (!srManager.isReady) {
+                    logcat(LogPriority.DEBUG) { "SR: Manager not ready, falling through to normal load ch$chId p$pageIdx" }
                     setHardwareConfig(ImageUtil.canUseHardwareBitmap(data))
                     setImage(ImageSource.inputStream(data.inputStream()))
                     isVisible = true
                     return@apply
                 }
-
-                val pageIdx = readerPage?.index ?: -1
-                val chId = readerPage?.chapter?.chapter?.id ?: -1L
 
                 val srCacheKey = buildSrCacheKey(chId, pageIdx, srManager)
                 val cachedSr = srManager.getCachedResult(srCacheKey)

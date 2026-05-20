@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import logcat.asLog
 import logcat.logcat
 import mihon.core.superresolution.profile.DeviceProfileManager
 import java.io.File
@@ -40,6 +41,7 @@ class SRPreloadDispatcher(
             }
 
             if (diskCache.get(cacheKey) != null || manager.getCachedResult(cacheKey) != null) {
+                logcat(LogPriority.DEBUG) { "SR: Preload skipped - already cached ch$chapterId p$pageIndex" }
                 synchronized(preloadingPages) { preloadingPages.remove(cacheKey) }
                 return@forEach
             }
@@ -49,7 +51,7 @@ class SRPreloadDispatcher(
                     onPreloadRequested?.invoke(chapterId, pageIndex)
                     logcat(LogPriority.DEBUG) { "SR: Preloading ch$chapterId p$pageIndex" }
                 } catch (e: Exception) {
-                    logcat(LogPriority.ERROR) { "SR: Preload failed ch$chapterId p$pageIndex: ${e.message}" }
+                    logcat(LogPriority.ERROR) { "SR: Preload failed ch$chapterId p$pageIndex\n${e.asLog()}" }
                 } finally {
                     synchronized(preloadingPages) { preloadingPages.remove(cacheKey) }
                 }
@@ -75,8 +77,6 @@ class SRPreloadDispatcher(
         manager.clearSrCache()
     }
 
-    private fun buildCacheKey(chapterId: Long, pageIndex: Int): String {
-        val modelKey = manager.activeModel?.key ?: "unknown"
-        return "page_${chapterId}_${pageIndex}_${modelKey}_${manager.activeScale}"
-    }
+    private fun buildCacheKey(chapterId: Long, pageIndex: Int): String =
+        manager.buildCacheKey(chapterId, pageIndex)
 }
