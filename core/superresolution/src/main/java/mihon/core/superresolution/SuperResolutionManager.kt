@@ -65,7 +65,7 @@ class SuperResolutionManager(
         get() = currentDenoiseLevel
 
     val isVulkanAvailable: Boolean by lazy {
-        VulkanHelper.isVulkanSupported(context) && VulkanHelper.getGpuCount() > 0
+        VulkanHelper.isVulkanSupported(context) && VulkanHelper.gpuCount > 0
     }
 
     fun getCachedResult(cacheKey: String): Bitmap? = synchronized(cacheLock) { srCache[cacheKey] }
