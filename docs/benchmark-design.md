@@ -84,11 +84,13 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
     /** 跑一轮推理，返回 (耗时ms, 结果图, 是否有效) */
     private suspend fun runOnce(input: Bitmap): Triple<Long, Bitmap, Boolean> {
         val version = manager.currentModelVersion()
+        val scale = manager.activeScale
         val startTime = System.nanoTime()
         val result = manager.process(input, version)
         val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
-        val valid = result !== input && elapsedMs >= 500
-        return Triple(elapsedMs, result, valid)
+        val srDidRun = result.width == input.width * scale 
+                    && result.height == input.height * scale
+        return Triple(elapsedMs, result, srDidRun)
     }
 
     private fun classifyTier(ms: Long): DeviceTier = when {
@@ -100,8 +102,8 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
 ```
 
 **异常判断逻辑**：
-- `result === input`（引用相同）→ processor 没有实际推理（NoOp / 模型未加载 / 处理失败）
-- `耗时 < 500ms` → 800×1100 触发 tiling 后不可能这么快，大概率异常
+- 输出分辨率 ≠ 输入分辨率 × scale → SR 没有实际运行（NoOp / 模型未加载 / 处理失败）
+- 只看分辨率，不依赖时间。即使耗时很短只要分辨率正确放大就算有效
 
 **为什么只测一轮？** SR 性能主要取决于 GPU/NPU，波动小。测试图 800×1100 接近实际页面尺寸，触发约 6 个 tile（800/400×1100/400），~2-8s 完成，能反映真实 tiling 行为。
 
