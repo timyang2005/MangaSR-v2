@@ -49,30 +49,46 @@
 
 ### 1.1 基准测试 — SRBenchmark
 
+**混合策略**：先用代码合成图跑一轮，检测结果是否异常；异常时自动切换到预置真实漫画图再跑一轮。
+
 ```kotlin
 // core/superresolution/src/main/java/mihon/core/superresolution/benchmark/SRBenchmark.kt
 
 class SRBenchmark(private val manager: SuperResolutionManager) {
 
-    suspend fun run(progress: (String) -> Unit): BenchmarkResult {
-        progress("正在准备测试图像…")
-        val testBitmap = createTestImage()  // 800×1100 ARGB_8888
+    suspend fun run(context: Context, progress: (String) -> Unit): BenchmarkResult {
+        // 第一轮: 代码合成图
+        progress("正在执行 SR 推理测试（合成图）…")
+        var (ms, resultBitmap, syntheticOk) = runOnce(createSyntheticImage(800, 1100))
 
-        progress("正在执行 SR 推理测试…")
-        val startTime = System.nanoTime()
-        val version = manager.currentModelVersion()
-        val result = manager.process(testBitmap, version)
-        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
+        // 第二轮: 如果合成图结果异常，用真实漫画图
+        if (!syntheticOk) {
+            progress("结果异常，切换到真实图片重测…")
+            val realBitmap = loadAssetImage(context, "benchmark_sample.png")  // 800×1100
+            val retry = runOnce(realBitmap)
+            ms = retry.ms
+            resultBitmap = retry.resultBitmap
+            // 两轮都异常 ? 标记为无法测试
+            if (!retry.ok) return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
+        }
 
-        testBitmap.recycle()
-        if (result !== testBitmap) result.recycle()
-
+        resultBitmap.recycle()
         return BenchmarkResult(
-            inferenceMs = elapsedMs,
-            deviceTier = classifyTier(elapsedMs),
+            inferenceMs = ms,
+            deviceTier = classifyTier(ms),
             scale = manager.activeScale,
             modelKey = manager.activeModel?.key,
         )
+    }
+
+    /** 跑一轮推理，返回 (耗时ms, 结果图, 是否有效) */
+    private suspend fun runOnce(input: Bitmap): Triple<Long, Bitmap, Boolean> {
+        val version = manager.currentModelVersion()
+        val startTime = System.nanoTime()
+        val result = manager.process(input, version)
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
+        val valid = result !== input && elapsedMs >= 500
+        return Triple(elapsedMs, result, valid)
     }
 
     private fun classifyTier(ms: Long): DeviceTier = when {
@@ -81,15 +97,22 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
         else       -> DeviceTier.SLOW
     }
 }
+```
 
-**为什么只测一次？** SR 性能主要取决于 GPU/NPU，波动小。测试图 800×1100 接近实际页面尺寸，触发约 6 个 tile（800/400×1100/400），~2-8s 完成，能反映真实 tiling 行为。
+**异常判断逻辑**：
+- `result === input`（引用相同）→ processor 没有实际推理（NoOp / 模型未加载 / 处理失败）
+- `耗时 < 500ms` → 800×1100 触发 tiling 后不可能这么快，大概率异常
+
+**为什么只测一轮？** SR 性能主要取决于 GPU/NPU，波动小。测试图 800×1100 接近实际页面尺寸，触发约 6 个 tile（800/400×1100/400），~2-8s 完成，能反映真实 tiling 行为。
+
+**真实漫画图来源**：在 `core/superresolution/src/main/assets/` 下预置一张 800×1100 PNG 漫画样图（~100-200KB），仅异常回退时使用。
 
 ### 1.2 设备分级 — DeviceProfileManager
 
 ```kotlin
 // core/superresolution/src/main/java/mihon/core/superresolution/profile/DeviceProfileManager.kt
 
-enum class DeviceTier { FAST, MID, SLOW }
+enum class DeviceTier { FAST, MID, SLOW, UNKNOWN }
 
 data class DeviceConfig(
     val preloadWindow: Int,       // 预加载页数
@@ -234,7 +257,7 @@ Phase 1 暂不实现，因为：
 | 决策 | 选择 | 理由 |
 |------|------|------|
 | 基准测试时机 | 用户手动触发 | 不影响首次启动体验 |
-| 测试图 | 代码合成 800×1100 | 接近真实页面，触发 tiling |
+| 测试图 | 合成图 + 真实漫画回退 | 先合成、异常时用 asset 预置 PNG |
 | 分档数 | 3 档 | 再多收益递减 |
 | 配置写入 | ReaderPreferences | 与现有系统一致，用户可覆盖 |
 | preloadWindow | 运行时动态读取 | 不修改现有 ViewPager 行为 |
