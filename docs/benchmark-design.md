@@ -49,7 +49,19 @@
 
 ### 1.1 基准测试 — SRBenchmark
 
-**混合策略**：先用代码合成图跑一轮，检测结果是否异常；异常时自动切换到预置真实漫画图再跑一轮。
+**混合策略**：先用合成图跑一轮，按结果分叉处理。
+
+```
+合成图 800×1100
+    │
+    ├─ 分辨率未放大 → UNKNOWN（SR 不可用）
+    │
+    └─ 分辨率正常放大
+         │
+         ├─ 耗时 ≥ 300ms → 直接用此结果分级
+         │
+         └─ 耗时 < 300ms → 真实漫画图再跑一轮，取第二轮结果分级
+```
 
 ```kotlin
 // core/superresolution/src/main/java/mihon/core/superresolution/benchmark/SRBenchmark.kt
@@ -57,38 +69,46 @@
 class SRBenchmark(private val manager: SuperResolutionManager) {
 
     suspend fun run(context: Context, progress: (String) -> Unit): BenchmarkResult {
-        // 第一轮: 代码合成图
-        progress("正在执行 SR 推理测试（合成图）…")
-        var (ms, resultBitmap, syntheticOk) = runOnce(createSyntheticImage(800, 1100))
+        // 第一轮: 合成图
+        val synthetic = createSyntheticImage(800, 1100)
+        val (ms, result, srDidRun) = runOnce(synthetic)
+        synthetic.recycle()
 
-        // 第二轮: 如果合成图结果异常，用真实漫画图
-        if (!syntheticOk) {
-            progress("结果异常，切换到真实图片重测…")
-            val realBitmap = loadAssetImage(context, "benchmark_sample.png")  // 800×1100
-            val retry = runOnce(realBitmap)
-            ms = retry.ms
-            resultBitmap = retry.resultBitmap
-            // 两轮都异常 ? 标记为无法测试
-            if (!retry.ok) return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
+        if (!srDidRun) {
+            result.recycle()
+            return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN)
         }
 
-        resultBitmap.recycle()
+        // 第二轮: 合成图耗时过小（可疑）→ 真实漫画图回退
+        val finalMs = if (ms < 300) {
+            progress("结果异常，切换到真实图片重测…")
+            val real = loadAssetImage(context, "benchmark_sample.png")
+            val (ms2, result2, ok2) = runOnce(real)
+            real.recycle()
+            result.recycle()
+            if (!ok2) { result2.recycle(); return BenchmarkResult(deviceTier = DeviceTier.UNKNOWN) }
+            result2.recycle()
+            ms2
+        } else {
+            result.recycle()
+            ms
+        }
+
         return BenchmarkResult(
-            inferenceMs = ms,
-            deviceTier = classifyTier(ms),
+            inferenceMs = finalMs,
+            deviceTier = classifyTier(finalMs),
             scale = manager.activeScale,
             modelKey = manager.activeModel?.key,
         )
     }
 
-    /** 跑一轮推理，返回 (耗时ms, 结果图, 是否有效) */
     private suspend fun runOnce(input: Bitmap): Triple<Long, Bitmap, Boolean> {
         val version = manager.currentModelVersion()
         val scale = manager.activeScale
         val startTime = System.nanoTime()
         val result = manager.process(input, version)
         val elapsedMs = (System.nanoTime() - startTime) / 1_000_000
-        val srDidRun = result.width == input.width * scale 
+        val srDidRun = result.width == input.width * scale
                     && result.height == input.height * scale
         return Triple(elapsedMs, result, srDidRun)
     }
@@ -101,9 +121,7 @@ class SRBenchmark(private val manager: SuperResolutionManager) {
 }
 ```
 
-**异常判断逻辑**：
-- 输出分辨率 ≠ 输入分辨率 × scale → SR 没有实际运行（NoOp / 模型未加载 / 处理失败）
-- 只看分辨率，不依赖时间。即使耗时很短只要分辨率正确放大就算有效
+**回退阈值 300ms 的依据**：800×1100 约 6 个 tile，即使顶级 GPU 也需要至少 ~200ms 完成 NCNN 推理 + tile 拼接。低于 300ms 的合成图结果可能是模型对简单渐变图做了特殊优化路径（非典型），需要真实漫画图验证。
 
 **为什么只测一轮？** SR 性能主要取决于 GPU/NPU，波动小。测试图 800×1100 接近实际页面尺寸，触发约 6 个 tile（800/400×1100/400），~2-8s 完成，能反映真实 tiling 行为。
 
