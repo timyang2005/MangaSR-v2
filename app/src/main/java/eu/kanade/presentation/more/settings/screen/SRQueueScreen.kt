@@ -159,23 +159,30 @@ object SRQueueScreen : VoyagerScreen {
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (isSelectingInProgress) {
-                            TextButton(
-                                onClick = {
-                                    selectedInProgress.toList().forEach { srSync.queueProcessor.cancel(it) }
+                        TextButton(
+                            onClick = {
+                                selectedList.clear()
+                                if (isSelectingInProgress) isSelectingInProgress = false
+                                else isSelectingCompleted = false
+                            },
+                        ) {
+                            Icon(Icons.Outlined.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(2.dp))
+                            Text(stringResource(MR.strings.sr_queue_cancel_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        TextButton(
+                            onClick = {
+                                if (isSelectingInProgress) {
+                                    selectedInProgress.toList().forEach { id ->
+                                        srSync.queueProcessor.cancel(id)
+                                        val item = queueState.inProgress.find { it.chapterId == id }
+                                        if (item != null && item.sourceName.isNotEmpty()) {
+                                            SRCacheManager.diskCache.removeBatchChapter(item.sourceName, item.mangaTitle, id)
+                                        }
+                                    }
                                     selectedInProgress.clear()
                                     isSelectingInProgress = false
-                                },
-                                enabled = inProgressAnySelected,
-                            ) {
-                                Icon(Icons.Outlined.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(2.dp))
-                                Text(stringResource(MR.strings.sr_queue_cancel_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                        if (isSelectingCompleted) {
-                            TextButton(
-                                onClick = {
+                                } else {
                                     val diskCache = SRCacheManager.diskCache
                                     selectedCompleted.toList().forEach { id ->
                                         val path = completedChapterPaths[id]
@@ -185,13 +192,13 @@ object SRQueueScreen : VoyagerScreen {
                                     completedChapterPaths = completedChapterPaths.filterKeys { it !in selectedCompleted }
                                     selectedCompleted.clear()
                                     isSelectingCompleted = false
-                                },
-                                enabled = completedAnySelected,
-                            ) {
-                                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(2.dp))
-                                Text(stringResource(MR.strings.sr_queue_delete_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
+                                }
+                            },
+                            enabled = if (isSelectingInProgress) inProgressAnySelected else completedAnySelected,
+                        ) {
+                            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(2.dp))
+                            Text(stringResource(MR.strings.sr_queue_delete_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Spacer(Modifier.weight(1f))
                         TextButton(

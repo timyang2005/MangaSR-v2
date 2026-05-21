@@ -12,6 +12,7 @@ data class SRQueueItem(
     val mangaTitle: String,
     val chapterName: String,
     val sourceKey: Long,
+    val sourceName: String = "",
     val totalPages: Int,
     val processedPages: Int = 0,
 )

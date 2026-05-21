@@ -61,12 +61,12 @@ class SRQueueProcessor(
         scope.launch { restoreQueue() }
     }
 
-    fun enqueue(chapters: List<tachiyomi.domain.chapter.model.Chapter>, mangaTitle: String, sourceKey: Long) {
+    fun enqueue(chapters: List<tachiyomi.domain.chapter.model.Chapter>, mangaTitle: String, sourceKey: Long, sourceName: String = "") {
         scope.launch {
             queueMutex.withLock {
                 val newItems = chapters
                     .filter { c -> queue.none { it.chapterId == c.id } }
-                    .map { c -> SRQueueItem(c.id, c.mangaId, mangaTitle, c.name, sourceKey, 0, 0) }
+                    .map { c -> SRQueueItem(c.id, c.mangaId, mangaTitle, c.name, sourceKey, sourceName, 0, 0) }
                 if (newItems.isEmpty()) return@withLock
                 queue.addAll(newItems)
                 persistLocked()
@@ -188,7 +188,7 @@ class SRQueueProcessor(
                 queueMutex.withLock {
                     val idx = queue.indexOfFirst { it.chapterId == item.chapterId }
                     if (idx >= 0) {
-                        queue[idx] = queue[idx].copy(totalPages = images.size)
+                        queue[idx] = queue[idx].copy(totalPages = images.size, sourceName = sourceName)
                         persistLocked()
                         _state.value = _state.value.copy(inProgress = queue.toList())
                     }
@@ -238,7 +238,9 @@ class SRQueueProcessor(
                     if (item.chapterId in cancelledIds) {
                         cancelledIds.remove(item.chapterId)
                     }
-                    queue.removeFirst()
+                    if (queue.isNotEmpty() && queue.first().chapterId == item.chapterId) {
+                        queue.removeFirst()
+                    }
                     persistLocked()
                     if (!cancelledMidProcessing) {
                         _state.value = _state.value.copy(
@@ -273,7 +275,7 @@ class SRQueueProcessor(
         queueMutex.withLock {
             val idx = queue.indexOfFirst { it.chapterId == item.chapterId }
             if (idx >= 0) {
-                queue[idx] = item
+                queue[idx] = queue[idx].copy(processedPages = item.processedPages)
                 persistLocked()
                 _state.value = _state.value.copy(inProgress = queue.toList())
             }
