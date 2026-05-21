@@ -127,7 +127,16 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { LocalCoverManager(app, get()) }
         addSingletonFactory { StorageManager(app, get()) }
         addSingletonFactory { SuperResolutionManager(app) }
-        addSingletonFactory { SRPreloadDispatcher(get(), app) }
+        addSingletonFactory { SRPreloadDispatcher(get(), app,
+            run {
+                val downloadsDir = get<StorageManager>().getDownloadsDirectory()
+                if (downloadsDir != null && downloadsDir.filePath != null) {
+                    java.io.File(downloadsDir.filePath, "sr_cache").also { it.mkdirs() }
+                } else {
+                    java.io.File(app.cacheDir, "sr_disk_cache")
+                }
+            },
+        ) }
         addSingletonFactory { SuperResolutionSync() }
 
         // Asynchronously init expensive components for a faster cold start

@@ -17,6 +17,7 @@ import mihon.core.superresolution.SRModel
 import mihon.core.superresolution.SRDiskCache
 import mihon.core.superresolution.SRQueueStore
 import mihon.core.superresolution.SuperResolutionManager
+import tachiyomi.domain.storage.service.StorageManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
@@ -38,10 +39,17 @@ class SuperResolutionSync(
         logcat(LogPriority.INFO) { "SR: SuperResolutionSync starting" }
 
         val context = Injekt.get<Application>()
-        val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+        val storageManager = Injekt.get<StorageManager>()
+        val downloadsDir = storageManager.getDownloadsDirectory()
+        val srCacheDir = if (downloadsDir != null && downloadsDir.filePath != null) {
+            File(downloadsDir.filePath, "sr_cache").also { it.mkdirs() }
+        } else {
+            File(context.cacheDir, "sr_disk_cache")
+        }
+        val diskCache = SRDiskCache(srCacheDir)
         val queueStore = SRQueueStore(context)
         val downloadProvider = Injekt.get<DownloadProvider>()
-        queueProcessor = SRQueueProcessor(manager, diskCache, queueStore, downloadProvider)
+        queueProcessor = SRQueueProcessor(manager, diskCache, queueStore, downloadProvider, context)
 
         scope.launch {
             combine(

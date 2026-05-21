@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.sr
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import eu.kanade.tachiyomi.data.download.DownloadProvider
@@ -17,6 +18,8 @@ import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
+import mihon.core.archive.ArchiveReader
+import mihon.core.archive.archiveReader
 import mihon.core.superresolution.ChapterMetadata
 import mihon.core.superresolution.SRDiskCache
 import mihon.core.superresolution.SRQueueItem
@@ -39,6 +42,7 @@ class SRQueueProcessor(
     private val diskCache: SRDiskCache,
     private val queueStore: SRQueueStore,
     private val downloadProvider: DownloadProvider,
+    private val context: Context,
     private val sourceManager: SourceManager = Injekt.get(),
     private val getManga: GetManga = Injekt.get(),
     private val getChapter: GetChapter = Injekt.get(),
@@ -112,6 +116,11 @@ class SRQueueProcessor(
         scope.launch { runLoop() }
     }
 
+    private data class ImageSource(
+        val name: String,
+        val openStream: () -> java.io.InputStream,
+    )
+
     private suspend fun runLoop() {
         while (true) {
             val item: SRQueueItem
@@ -138,76 +147,99 @@ class SRQueueProcessor(
                 manga.title, source,
             )
 
-            if (chapterDir == null || chapterDir.isFile) {
-                logcat(LogPriority.WARN) { "SR: Chapter dir not found or is archive, skipping ch${item.chapterId}" }
+            if (chapterDir == null) {
+                logcat(LogPriority.WARN) { "SR: Chapter dir not found, skipping ch${item.chapterId}" }
                 queueMutex.withLock { queue.removeFirst(); persistLocked() }
                 continue
             }
 
-            val files = chapterDir.listFiles().orEmpty()
-                .filter { it.isFile && ImageUtil.isImage(it.name) { it.openInputStream() } }
-                .sortedBy { it.name }
+            val images: List<ImageSource>
+            var archiveReader: ArchiveReader? = null
+            try {
+                if (chapterDir.isFile) {
+                    archiveReader = chapterDir.archiveReader(context)
+                    val entryNames = archiveReader.useEntries { entries ->
+                        entries
+                            .filter { it.isFile && ImageUtil.isImage(it.name) }
+                            .sortedBy { it.name }
+                            .map { it.name }
+                            .toList()
+                    }
+                    images = entryNames.map { name ->
+                        ImageSource(name) { archiveReader.getInputStream(name)!! }
+                    }
+                } else {
+                    val files = chapterDir.listFiles().orEmpty()
+                        .filter { it.isFile && ImageUtil.isImage(it.name) { it.openInputStream() } }
+                        .sortedBy { it.name }
+                    images = files.map { file ->
+                        ImageSource(file.name!!) { file.openInputStream() }
+                    }
+                }
 
-            if (files.isEmpty()) {
-                logcat(LogPriority.WARN) { "SR: No image files found in ch${item.chapterId}" }
-                queueMutex.withLock { queue.removeFirst(); persistLocked() }
-                continue
-            }
-
-            val version = manager.currentModelVersion()
-            var processed = 0
-
-            for (uniFile in files) {
-                currentCoroutineContext().ensureActive()
-                val pageIndex = processed
-                val cacheKey = manager.buildCacheKey(item.chapterId, pageIndex)
-                if (diskCache.get(cacheKey) != null) {
-                    processed++
-                    updateProgress(item.copy(processedPages = processed))
+                if (images.isEmpty()) {
+                    logcat(LogPriority.WARN) { "SR: No image files found in ch${item.chapterId}" }
+                    queueMutex.withLock { queue.removeFirst(); persistLocked() }
                     continue
                 }
 
-                var input: Bitmap? = null
-                var result: Bitmap? = null
-                try {
-                    input = uniFile.openInputStream().use { stream ->
-                        BitmapFactory.decodeStream(stream)
-                    }
-                    if (input != null) {
-                        result = manager.process(input, version)
-                        if (result !== input) {
-                            diskCache.put(cacheKey, result)
-                        }
-                    }
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR) { "SR: Failed to process page $pageIndex ch${item.chapterId}\n${e.asLog()}" }
-                } finally {
-                    input?.recycle()
-                    if (result != null && result !== input) result.recycle()
-                }
-                processed++
-                updateProgress(item.copy(processedPages = processed))
-            }
+                val version = manager.currentModelVersion()
+                var processed = 0
 
-            queueMutex.withLock {
-                if (item.chapterId in cancelledIds) {
-                    cancelledIds.remove(item.chapterId)
-                    logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} was cancelled, skipping metadata" }
-                    return@withLock
+                for (image in images) {
+                    currentCoroutineContext().ensureActive()
+                    val pageIndex = processed
+                    val cacheKey = manager.buildCacheKey(item.chapterId, pageIndex)
+                    if (diskCache.get(cacheKey) != null) {
+                        processed++
+                        updateProgress(item.copy(processedPages = processed))
+                        continue
+                    }
+
+                    var input: Bitmap? = null
+                    var result: Bitmap? = null
+                    try {
+                        input = image.openStream().use { stream ->
+                            BitmapFactory.decodeStream(stream)
+                        }
+                        if (input != null) {
+                            result = manager.process(input, version)
+                            if (result !== input) {
+                                diskCache.put(cacheKey, result)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR) { "SR: Failed to process page $pageIndex ch${item.chapterId}\n${e.asLog()}" }
+                    } finally {
+                        input?.recycle()
+                        if (result != null && result !== input) result.recycle()
+                    }
+                    processed++
+                    updateProgress(item.copy(processedPages = processed))
                 }
-                queue.removeFirst()
-                persistLocked()
-                _state.value = _state.value.copy(
-                    inProgress = queue.toList(),
-                    completedCount = _state.value.completedCount + 1,
-                )
+
+                queueMutex.withLock {
+                    if (item.chapterId in cancelledIds) {
+                        cancelledIds.remove(item.chapterId)
+                        logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} was cancelled, skipping metadata" }
+                        return@withLock
+                    }
+                    queue.removeFirst()
+                    persistLocked()
+                    _state.value = _state.value.copy(
+                        inProgress = queue.toList(),
+                        completedCount = _state.value.completedCount + 1,
+                    )
+                }
+                diskCache.putChapterMetadata(item.chapterId, ChapterMetadata(
+                    mangaId = item.mangaId,
+                    mangaTitle = item.mangaTitle,
+                    chapterName = item.chapterName,
+                    pageCount = images.size,
+                ))
+            } finally {
+                archiveReader?.close()
             }
-            diskCache.putChapterMetadata(item.chapterId, ChapterMetadata(
-                mangaId = item.mangaId,
-                mangaTitle = item.mangaTitle,
-                chapterName = item.chapterName,
-                pageCount = files.size,
-            ))
         }
     }
 

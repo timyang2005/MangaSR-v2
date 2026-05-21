@@ -15,10 +15,12 @@ import java.io.File
 class SRPreloadDispatcher(
     private val manager: SuperResolutionManager,
     private val context: Context,
+    srCacheDir: File = File(context.cacheDir, "sr_disk_cache"),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val profileManager = DeviceProfileManager(context)
-    private val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
+    private val diskCache = SRDiskCache(srCacheDir)
+
     private val preloadingPages = mutableSetOf<String>()
 
     var onPreloadRequested: ((chapterId: Long, pageIndex: Int) -> Unit)? = null
