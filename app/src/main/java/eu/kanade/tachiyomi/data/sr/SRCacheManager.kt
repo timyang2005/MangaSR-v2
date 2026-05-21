@@ -6,8 +6,10 @@ import logcat.LogPriority
 import logcat.logcat
 import mihon.core.superresolution.SRDiskCache
 import mihon.core.superresolution.SuperResolutionManager
+import tachiyomi.domain.storage.service.StorageManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.File
 
 data class CacheUsage(
     val memoryEntries: Int,
@@ -21,12 +23,22 @@ data class CacheUsage(
 
 object SRCacheManager {
 
+    fun getDiskCache(): SRDiskCache {
+        val app = Injekt.get<Application>()
+        val storageManager: StorageManager = Injekt.get()
+        val downloadsDir = storageManager.getDownloadsDirectory()
+        val srCacheDir = if (downloadsDir != null && downloadsDir.filePath != null) {
+            File(downloadsDir.filePath, "sr_cache").also { it.mkdirs() }
+        } else {
+            File(app.cacheDir, "sr_disk_cache")
+        }
+        return SRDiskCache(srCacheDir)
+    }
+
     fun getCacheUsage(): CacheUsage {
         val manager = Injekt.get<SuperResolutionManager>()
         val (memEntries, memBytes) = manager.getCacheUsage()
-        val app = Injekt.get<Application>()
-        val cacheDir = java.io.File(app.cacheDir, "sr_disk_cache")
-        val diskCache = SRDiskCache(cacheDir)
+        val diskCache = getDiskCache()
         val (diskFiles, diskBytes) = diskCache.getUsage()
         return CacheUsage(memEntries, memBytes, diskFiles, diskBytes)
     }
@@ -61,10 +73,7 @@ object SRCacheManager {
 
     fun clearDiskCache() {
         try {
-            val app = Injekt.get<Application>()
-            val cacheDir = java.io.File(app.cacheDir, "sr_disk_cache")
-            val diskCache = SRDiskCache(cacheDir)
-            diskCache.clear()
+            getDiskCache().clear()
         } catch (e: Exception) {
             logcat(LogPriority.ERROR) { "SR: Failed to clear SR disk cache: ${e.message}" }
         }

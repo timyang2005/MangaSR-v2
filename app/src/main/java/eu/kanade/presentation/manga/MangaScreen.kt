@@ -80,6 +80,7 @@ import tachiyomi.source.local.isLocal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
+import eu.kanade.tachiyomi.data.sr.SRCacheManager
 import mihon.core.superresolution.SRDiskCache
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -141,8 +142,7 @@ fun MangaScreen(
 
     LaunchedEffect(state.manga.id) {
         withContext(Dispatchers.IO) {
-            val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
-            srCompletedIds.value = diskCache.getCompletedChapters().map { it.first }.toSet()
+            srCompletedIds.value = SRCacheManager.getDiskCache().getCompletedChapters().map { it.first }.toSet()
         }
     }
 
@@ -154,8 +154,7 @@ fun MangaScreen(
                 if (s.completedCount != lastCompleted) {
                     lastCompleted = s.completedCount
                     withContext(Dispatchers.IO) {
-                        val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
-                        srCompletedIds.value = diskCache.getCompletedChapters().map { it.first }.toSet()
+                        srCompletedIds.value = SRCacheManager.getDiskCache().getCompletedChapters().map { it.first }.toSet()
                     }
                 }
             }

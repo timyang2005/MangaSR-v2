@@ -14,6 +14,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.data.sr.CacheUsage
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -490,13 +492,12 @@ object SettingsReaderScreen : SearchableSettings {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val srLogUtil = remember { SRLogUtil(context) }
+        val navigator = LocalNavigator.currentOrThrow
 
-        var showQueueDialog by remember { mutableStateOf(false) }
         val srSync = remember { Injekt.get<SuperResolutionSync>() }
         val queueState by srSync.queueProcessor.state.collectAsState()
         val inProgressCount = queueState.inProgress.size
         val completedCount = queueState.completedCount
-        var completedChapters by remember { mutableStateOf<List<Pair<Long, ChapterMetadata>>>(emptyList()) }
 
         // i18n strings
         val exportLogsTitle = stringResource(MR.strings.pref_sr_export_logs)
@@ -603,41 +604,10 @@ object SettingsReaderScreen : SearchableSettings {
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_sr_batch_queue),
                     subtitle = stringResource(MR.strings.pref_sr_batch_queue_summary, inProgressCount, completedCount),
-                    onClick = { showQueueDialog = true },
+                    onClick = { navigator.push(SRQueueScreen) },
                 ),
             ),
         )
-
-        if (showQueueDialog) {
-            SRQueueDialog(
-                state = queueState,
-                completedChapters = completedChapters,
-                onDismiss = { showQueueDialog = false },
-                onCancel = { chapterId ->
-                    srSync.queueProcessor.cancel(chapterId)
-                },
-                onDeleteCompleted = { chapterIds ->
-                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
-                    chapterIds.forEach { diskCache.removeChapter(it) }
-                    completedChapters = completedChapters.filter { (id, _) -> id !in chapterIds }
-                },
-                onClearAll = {
-                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
-                    completedChapters.forEach { (id, _) -> diskCache.removeChapter(id) }
-                    completedChapters = emptyList()
-                },
-            )
-        }
-
-        // Load completed chapters on dialog open
-        LaunchedEffect(showQueueDialog) {
-            if (showQueueDialog) {
-                withContext(Dispatchers.IO) {
-                    val diskCache = SRDiskCache(File(context.cacheDir, "sr_disk_cache"))
-                    completedChapters = diskCache.getCompletedChapters()
-                }
-            }
-        }
 
         return group
     }
@@ -698,138 +668,5 @@ object SettingsReaderScreen : SearchableSettings {
             }
             .setNegativeButton(closeButton, null)
             .show()
-    }
-
-    @Composable
-    private fun SRQueueDialog(
-        state: SRQueueState,
-        completedChapters: List<Pair<Long, ChapterMetadata>>,
-        onDismiss: () -> Unit,
-        onCancel: (Long) -> Unit,
-        onDeleteCompleted: (List<Long>) -> Unit,
-        onClearAll: () -> Unit,
-    ) {
-        val selectedForDelete = remember { mutableStateListOf<Long>() }
-        val selectedAll = remember(completedChapters) {
-            derivedStateOf { selectedForDelete.size == completedChapters.size && completedChapters.isNotEmpty() }
-        }
-
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(stringResource(MR.strings.pref_sr_batch_queue)) },
-            text = {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                ) {
-                    // In-progress section header
-                    item {
-                        Text(
-                            text = stringResource(MR.strings.sr_queue_in_progress),
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-                    if (state.inProgress.isEmpty()) {
-                        item { Text("None", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
-                    } else {
-                        items(state.inProgress, key = { it.chapterId }) { item ->
-                            Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                                Text(
-                                    text = "${item.mangaTitle} ${item.chapterName}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                LinearProgressIndicator(
-                                    progress = { if (item.totalPages > 0) item.processedPages.toFloat() / item.totalPages else 0f },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    // Completed section header
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = stringResource(MR.strings.sr_queue_completed),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                            if (completedChapters.isNotEmpty()) {
-                                TextButton(onClick = {
-                                    if (selectedAll.value) selectedForDelete.clear()
-                                    else selectedForDelete.addAll(completedChapters.map { it.first })
-                                }) {
-                                    Text(if (selectedAll.value) "Deselect All" else "Select All")
-                                }
-                            }
-                        }
-                    }
-                    if (completedChapters.isEmpty()) {
-                        item { Text("None", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)) }
-                    } else {
-                        val grouped = completedChapters.groupBy { (_, meta) -> meta.mangaTitle }
-                        grouped.forEach { (mangaTitle, chapters) ->
-                            item {
-                                Text(
-                                    text = mangaTitle,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                                )
-                            }
-                            items(chapters, key = { it.first }) { (chapterId, meta) ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Checkbox(
-                                        checked = chapterId in selectedForDelete,
-                                        onCheckedChange = { checked ->
-                                            if (checked) selectedForDelete.add(chapterId)
-                                            else selectedForDelete.remove(chapterId)
-                                        },
-                                    )
-                                    Text(
-                                        text = "${meta.chapterName} · ${meta.pageCount} pages",
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            onClearAll()
-                            selectedForDelete.clear()
-                        },
-                        enabled = completedChapters.isNotEmpty(),
-                    ) {
-                        Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(stringResource(MR.strings.sr_queue_clear_all))
-                    }
-                    TextButton(
-                        onClick = {
-                            onDeleteCompleted(selectedForDelete.toList())
-                            selectedForDelete.clear()
-                        },
-                        enabled = selectedForDelete.isNotEmpty(),
-                    ) {
-                        Text(stringResource(MR.strings.sr_queue_delete_selected))
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(MR.strings.action_close))
-                }
-            },
-        )
     }
 }

@@ -1131,4 +1131,5 @@
     <string name="sr_queue_completed">Completed</string>
     <string name="sr_queue_delete_selected">Delete selected</string>
     <string name="sr_queue_clear_all">Clear all</string>
+    <string name="sr_queue_none">None</string>
 </resources>
