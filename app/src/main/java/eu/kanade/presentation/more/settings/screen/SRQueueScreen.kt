@@ -44,9 +44,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen as VoyagerScreen
+import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.data.sr.SRCacheManager
-import eu.kanade.tachiyomi.data.sr.SRQueueState
 import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -62,30 +62,49 @@ object SRQueueScreen : VoyagerScreen {
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     @Composable
     override fun Content() {
-        val navigator = cafe.adriel.voyager.navigator.LocalNavigator.currentOrThrow
+        val navigator = LocalNavigator.currentOrThrow
         val srSync = remember { Injekt.get<SuperResolutionSync>() }
         val queueState by srSync.queueProcessor.state.collectAsState()
         val haptic = LocalHapticFeedback.current
 
-        var completedChapters by remember { mutableStateOf<List<Pair<Long, ChapterMetadata>>>(emptyList()) }
+        var completedChapters by remember {
+            mutableStateOf<List<Pair<Long, ChapterMetadata>>>(emptyList())
+        }
+        var completedChapterPaths by remember {
+            mutableStateOf<Map<Long, Pair<String, String>>>(emptyMap())
+        }
 
         val selectedInProgress = remember { mutableStateListOf<Long>() }
         var isSelectingInProgress by remember { mutableStateOf(false) }
 
         val selectedCompleted = remember { mutableStateListOf<Long>() }
-        val completedAllSelected by remember(completedChapters) {
-            derivedStateOf { selectedCompleted.size == completedChapters.size && completedChapters.isNotEmpty() }
+        var isSelectingCompleted by remember { mutableStateOf(false) }
+
+        val inProgressAnySelected by remember(queueState.inProgress) {
+            derivedStateOf { selectedInProgress.isNotEmpty() }
         }
         val completedAnySelected by remember(completedChapters) {
             derivedStateOf { selectedCompleted.isNotEmpty() }
         }
-        val inProgressAnySelected by remember(queueState.inProgress) {
-            derivedStateOf { selectedInProgress.isNotEmpty() }
+        val inProgressAllSelected by remember(queueState.inProgress) {
+            derivedStateOf { selectedInProgress.size == queueState.inProgress.size && queueState.inProgress.isNotEmpty() }
+        }
+        val completedAllSelected by remember(completedChapters) {
+            derivedStateOf { selectedCompleted.size == completedChapters.size && completedChapters.isNotEmpty() }
+        }
+        val hasCompleted by remember(completedChapters) {
+            derivedStateOf { completedChapters.isNotEmpty() }
         }
 
-        LaunchedEffect(Unit) {
+        val isAnySelecting by remember { derivedStateOf { isSelectingInProgress || isSelectingCompleted } }
+        val selectedCount = selectedInProgress.size + selectedCompleted.size
+
+        LaunchedEffect(queueState.completedCount) {
             withContext(Dispatchers.IO) {
-                completedChapters = SRCacheManager.getDiskCache().getCompletedChapters()
+                val diskCache = SRCacheManager.diskCache
+                val batch = diskCache.getCompletedBatchChapters()
+                completedChapters = batch.map { (id, meta, _) -> id to meta }
+                completedChapterPaths = batch.associate { (id, meta, path) -> id to path }
             }
         }
 
@@ -94,87 +113,126 @@ object SRQueueScreen : VoyagerScreen {
                 TopAppBar(
                     title = {
                         Text(
-                            if (isSelectingInProgress)
-                                stringResource(MR.strings.sr_queue_selected_count, selectedInProgress.size)
+                            if (isAnySelecting)
+                                stringResource(MR.strings.sr_queue_selected_count, selectedCount)
                             else
                                 stringResource(MR.strings.pref_sr_batch_queue),
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = {
-                            if (isSelectingInProgress) {
-                                selectedInProgress.clear()
-                                isSelectingInProgress = false
-                            } else {
-                                navigator.pop()
+                            when {
+                                isSelectingInProgress -> {
+                                    selectedInProgress.clear()
+                                    isSelectingInProgress = false
+                                }
+                                isSelectingCompleted -> {
+                                    selectedCompleted.clear()
+                                    isSelectingCompleted = false
+                                }
+                                else -> navigator.pop()
                             }
                         }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
                     },
-                    actions = {
-                        if (completedChapters.isNotEmpty()) {
-                            TextButton(onClick = {
-                                if (completedAllSelected) selectedCompleted.clear()
-                                else {
-                                    selectedCompleted.clear()
-                                    selectedCompleted.addAll(completedChapters.map { it.first })
-                                }
-                            }) {
-                                Text(
-                                    if (completedAllSelected) stringResource(MR.strings.action_select_inverse)
-                                    else stringResource(MR.strings.action_select_all),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    },
                 )
             },
             bottomBar = {
-                if (inProgressAnySelected || completedAnySelected || completedChapters.isNotEmpty()) {
+                if (isAnySelecting) {
+                    val allIds: List<Long>
+                    val selectedList: MutableList<Long>
+                    val allSelected: Boolean
+                    if (isSelectingInProgress) {
+                        allIds = queueState.inProgress.map { it.chapterId }
+                        selectedList = selectedInProgress
+                        allSelected = inProgressAllSelected
+                    } else {
+                        allIds = completedChapters.map { it.first }
+                        selectedList = selectedCompleted
+                        allSelected = completedAllSelected
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        if (inProgressAnySelected) {
+                        if (isSelectingInProgress) {
                             TextButton(
                                 onClick = {
                                     selectedInProgress.toList().forEach { srSync.queueProcessor.cancel(it) }
                                     selectedInProgress.clear()
                                     isSelectingInProgress = false
                                 },
+                                enabled = inProgressAnySelected,
                             ) {
                                 Icon(Icons.Outlined.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(MR.strings.sr_queue_cancel_selected))
+                                Spacer(Modifier.width(2.dp))
+                                Text(stringResource(MR.strings.sr_queue_cancel_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        TextButton(
-                            onClick = {
-                                val diskCache = SRCacheManager.getDiskCache()
-                                selectedCompleted.toList().forEach { diskCache.removeChapter(it) }
-                                completedChapters = completedChapters.filter { (id, _) -> id !in selectedCompleted }
-                                selectedCompleted.clear()
-                            },
-                            enabled = completedAnySelected,
-                        ) {
-                            Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(MR.strings.sr_queue_delete_selected))
+                        if (isSelectingCompleted) {
+                            TextButton(
+                                onClick = {
+                                    val diskCache = SRCacheManager.diskCache
+                                    selectedCompleted.toList().forEach { id ->
+                                        val path = completedChapterPaths[id]
+                                        if (path != null) diskCache.removeBatchChapter(path.first, path.second, id)
+                                    }
+                                    completedChapters = completedChapters.filter { (id, _) -> id !in selectedCompleted }
+                                    completedChapterPaths = completedChapterPaths.filterKeys { it !in selectedCompleted }
+                                    selectedCompleted.clear()
+                                    isSelectingCompleted = false
+                                },
+                                enabled = completedAnySelected,
+                            ) {
+                                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text(stringResource(MR.strings.sr_queue_delete_selected), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                         TextButton(
                             onClick = {
-                                val diskCache = SRCacheManager.getDiskCache()
-                                completedChapters.forEach { (id, _) -> diskCache.removeChapter(id) }
-                                completedChapters = emptyList()
-                                selectedCompleted.clear()
+                                val newIds = allIds.filter { it !in selectedList }
+                                selectedList.clear()
+                                selectedList.addAll(newIds)
                             },
-                            enabled = completedChapters.isNotEmpty(),
+                        ) {
+                            Text(stringResource(MR.strings.action_select_inverse), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        TextButton(
+                            onClick = {
+                                if (allSelected) selectedList.clear()
+                                else { selectedList.clear(); selectedList.addAll(allIds) }
+                            },
+                        ) {
+                            Text(
+                                if (allSelected) stringResource(MR.strings.action_select_none)
+                                else stringResource(MR.strings.action_select_all),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                } else if (hasCompleted) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(
+                            onClick = {
+                                val diskCache = SRCacheManager.diskCache
+                                completedChapterPaths.forEach { (id, path) ->
+                                    diskCache.removeBatchChapter(path.first, path.second, id)
+                                }
+                                completedChapters = emptyList()
+                                completedChapterPaths = emptyMap()
+                            },
                         ) {
                             Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -264,10 +322,21 @@ object SRQueueScreen : VoyagerScreen {
                             CompletedItem(
                                 chapterId = chapterId,
                                 meta = meta,
+                                isSelecting = isSelectingCompleted,
                                 checked = chapterId in selectedCompleted,
-                                onToggle = { id ->
-                                    if (selectedCompleted.contains(id)) selectedCompleted.remove(id)
-                                    else selectedCompleted.add(id)
+                                onLongClick = {
+                                    if (!isSelectingCompleted) {
+                                        isSelectingCompleted = true
+                                        selectedCompleted.add(chapterId)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                },
+                                onClick = {
+                                    if (isSelectingCompleted) {
+                                        if (chapterId in selectedCompleted) selectedCompleted.remove(chapterId)
+                                        else selectedCompleted.add(chapterId)
+                                        if (selectedCompleted.isEmpty()) isSelectingCompleted = false
+                                    }
                                 },
                             )
                         }
@@ -295,9 +364,9 @@ private fun InProgressItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
+            .then(
+                if (isSelecting) Modifier
+                else Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick),
             )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -346,23 +415,32 @@ private fun InProgressItem(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CompletedItem(
     chapterId: Long,
     meta: ChapterMetadata,
+    isSelecting: Boolean,
     checked: Boolean,
-    onToggle: (Long) -> Unit,
+    onLongClick: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (isSelecting) Modifier
+                else Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick),
+            )
             .padding(start = 16.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = { onToggle(chapterId) },
-        )
+        if (isSelecting) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = { onClick() },
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = meta.chapterName,

@@ -23,7 +23,7 @@ data class CacheUsage(
 
 object SRCacheManager {
 
-    fun getDiskCache(): SRDiskCache {
+    val diskCache: SRDiskCache by lazy {
         val app = Injekt.get<Application>()
         val storageManager: StorageManager = Injekt.get()
         val downloadsDir = storageManager.getDownloadsDirectory()
@@ -32,13 +32,13 @@ object SRCacheManager {
         } else {
             File(app.cacheDir, "sr_disk_cache")
         }
-        return SRDiskCache(srCacheDir)
+        SRDiskCache(srCacheDir)
     }
 
     fun getCacheUsage(): CacheUsage {
         val manager = Injekt.get<SuperResolutionManager>()
         val (memEntries, memBytes) = manager.getCacheUsage()
-        val diskCache = getDiskCache()
+        val diskCache = diskCache
         val (diskFiles, diskBytes) = diskCache.getUsage()
         return CacheUsage(memEntries, memBytes, diskFiles, diskBytes)
     }
@@ -73,7 +73,7 @@ object SRCacheManager {
 
     fun clearDiskCache() {
         try {
-            getDiskCache().clear()
+            diskCache.clear()
         } catch (e: Exception) {
             logcat(LogPriority.ERROR) { "SR: Failed to clear SR disk cache: ${e.message}" }
         }

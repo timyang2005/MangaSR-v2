@@ -65,7 +65,7 @@ class SRQueueProcessor(
         scope.launch {
             queueMutex.withLock {
                 val newItems = chapters
-                    .filter { c -> queue.none { it.chapterId == c.id } && !diskCache.contains(manager.buildCacheKey(c.id, 0)) }
+                    .filter { c -> queue.none { it.chapterId == c.id } }
                     .map { c -> SRQueueItem(c.id, c.mangaId, mangaTitle, c.name, sourceKey, 0, 0) }
                 if (newItems.isEmpty()) return@withLock
                 queue.addAll(newItems)
@@ -142,6 +142,8 @@ class SRQueueProcessor(
                 continue
             }
 
+            val sourceName = downloadProvider.getSourceDirName(source)
+
             val chapterDir = downloadProvider.findChapterDir(
                 chapter.name, chapter.scanlator, chapter.url,
                 manga.title, source,
@@ -194,16 +196,17 @@ class SRQueueProcessor(
 
                 val version = manager.currentModelVersion()
                 var processed = 0
+                var cancelledMidProcessing = false
 
                 for (image in images) {
                     currentCoroutineContext().ensureActive()
                     if (queueMutex.withLock { item.chapterId in cancelledIds }) {
+                        cancelledMidProcessing = true
                         logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} cancelled mid-processing at page $processed/${images.size}" }
                         break
                     }
                     val pageIndex = processed
-                    val cacheKey = manager.buildCacheKey(item.chapterId, pageIndex)
-                    if (diskCache.get(cacheKey) != null) {
+                    if (diskCache.getBatchPage(sourceName, item.mangaTitle, item.chapterId, pageIndex) != null) {
                         processed++
                         updateProgress(item.copy(processedPages = processed))
                         continue
@@ -218,7 +221,7 @@ class SRQueueProcessor(
                         if (input != null) {
                             result = manager.process(input, version)
                             if (result !== input) {
-                                diskCache.put(cacheKey, result)
+                                diskCache.putBatchPage(sourceName, item.mangaTitle, item.chapterId, pageIndex, result)
                             }
                         }
                     } catch (e: Exception) {
@@ -234,22 +237,32 @@ class SRQueueProcessor(
                 queueMutex.withLock {
                     if (item.chapterId in cancelledIds) {
                         cancelledIds.remove(item.chapterId)
-                        logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} was cancelled, skipping metadata" }
-                        return@withLock
                     }
                     queue.removeFirst()
                     persistLocked()
-                    _state.value = _state.value.copy(
-                        inProgress = queue.toList(),
-                        completedCount = _state.value.completedCount + 1,
+                    if (!cancelledMidProcessing) {
+                        _state.value = _state.value.copy(
+                            inProgress = queue.toList(),
+                            completedCount = _state.value.completedCount + 1,
+                        )
+                    } else {
+                        _state.value = _state.value.copy(inProgress = queue.toList())
+                    }
+                }
+                if (cancelledMidProcessing) {
+                    logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} removing partial batch cache" }
+                    diskCache.removeBatchChapter(sourceName, item.mangaTitle, item.chapterId)
+                } else {
+                    diskCache.putBatchMetadata(
+                        sourceName, item.mangaTitle, item.chapterId,
+                        ChapterMetadata(
+                            mangaId = item.mangaId,
+                            mangaTitle = item.mangaTitle,
+                            chapterName = item.chapterName,
+                            pageCount = images.size,
+                        ),
                     )
                 }
-                diskCache.putChapterMetadata(item.chapterId, ChapterMetadata(
-                    mangaId = item.mangaId,
-                    mangaTitle = item.mangaTitle,
-                    chapterName = item.chapterName,
-                    pageCount = images.size,
-                ))
             } finally {
                 archiveReader?.close()
             }

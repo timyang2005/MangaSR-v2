@@ -36,7 +36,7 @@ class SuperResolutionSync(
         logcat(LogPriority.INFO) { "SR: SuperResolutionSync starting" }
 
         val context = Injekt.get<Application>()
-        val diskCache = SRCacheManager.getDiskCache()
+        val diskCache = SRCacheManager.diskCache
         val queueStore = SRQueueStore(context)
         val downloadProvider = Injekt.get<DownloadProvider>()
         queueProcessor = SRQueueProcessor(manager, diskCache, queueStore, downloadProvider, context)

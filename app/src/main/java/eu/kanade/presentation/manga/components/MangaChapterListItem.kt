@@ -179,7 +179,7 @@ fun MangaChapterListItem(
                 Icon(
                     imageVector = ImageVector.vectorResource(R.drawable.ic_sr_sparkle_24dp),
                     contentDescription = "SR",
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(22.dp),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }

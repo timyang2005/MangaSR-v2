@@ -142,7 +142,7 @@ fun MangaScreen(
 
     LaunchedEffect(state.manga.id) {
         withContext(Dispatchers.IO) {
-            srCompletedIds.value = SRCacheManager.getDiskCache().getCompletedChapters().map { it.first }.toSet()
+            srCompletedIds.value = SRCacheManager.diskCache.getCompletedBatchChapters().map { (id, _, _) -> id }.toSet()
         }
     }
 
@@ -154,7 +154,7 @@ fun MangaScreen(
                 if (s.completedCount != lastCompleted) {
                     lastCompleted = s.completedCount
                     withContext(Dispatchers.IO) {
-                        srCompletedIds.value = SRCacheManager.getDiskCache().getCompletedChapters().map { it.first }.toSet()
+                        srCompletedIds.value = SRCacheManager.diskCache.getCompletedBatchChapters().map { (id, _, _) -> id }.toSet()
                     }
                 }
             }
