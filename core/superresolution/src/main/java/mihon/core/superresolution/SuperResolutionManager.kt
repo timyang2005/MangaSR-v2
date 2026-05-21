@@ -100,7 +100,7 @@ class SuperResolutionManager(
         }
     }
 
-    private fun cancelAllProcessingJobs() {
+    fun cancelProcessingJobs() {
         synchronized(jobsMutex) {
             processingJobs.forEach { it.cancel() }
             processingJobs.clear()
@@ -123,7 +123,7 @@ class SuperResolutionManager(
         }
 
         pendingModelKey = model.key
-        cancelAllProcessingJobs()
+        cancelProcessingJobs()
         onModelSwitching?.invoke()
         currentProcessor?.release()
         currentProcessor = null
@@ -228,7 +228,7 @@ class SuperResolutionManager(
     fun currentModelVersion(): Long = modelVersion
 
     fun release() {
-        cancelAllProcessingJobs()
+        cancelProcessingJobs()
         currentProcessor?.release()
         currentProcessor = null
         currentModel = null

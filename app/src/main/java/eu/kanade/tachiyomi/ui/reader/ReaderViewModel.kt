@@ -259,6 +259,8 @@ class ReaderViewModel @JvmOverloads constructor(
     }
 
     override fun onCleared() {
+        srManager.cancelProcessingJobs()
+        clearAllSrBitmaps()
         val currentChapters = state.value.viewerChapters
         if (currentChapters != null) {
             currentChapters.unref()
