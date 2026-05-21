@@ -42,7 +42,7 @@ internal class ArchiveInputStream(buffer: Long, size: Long) : InputStream() {
     }
 
     private fun read(buffer: ByteBuffer) {
-        buffer.clear()
+        buffer.position(0)
         Archive.readData(archive, buffer)
         buffer.flip()
     }
