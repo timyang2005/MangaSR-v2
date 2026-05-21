@@ -1,7 +1,8 @@
 package eu.kanade.presentation.more.settings.screen
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,12 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen as VoyagerScreen
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.data.sr.SRCacheManager
-import eu.kanade.tachiyomi.data.sr.SRQueueProcessor
 import eu.kanade.tachiyomi.data.sr.SRQueueState
 import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
 import kotlinx.coroutines.Dispatchers
@@ -58,20 +59,28 @@ import uy.kohesive.injekt.api.get
 
 object SRQueueScreen : VoyagerScreen {
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     @Composable
     override fun Content() {
         val navigator = cafe.adriel.voyager.navigator.LocalNavigator.currentOrThrow
         val srSync = remember { Injekt.get<SuperResolutionSync>() }
         val queueState by srSync.queueProcessor.state.collectAsState()
+        val haptic = LocalHapticFeedback.current
 
         var completedChapters by remember { mutableStateOf<List<Pair<Long, ChapterMetadata>>>(emptyList()) }
-        val selectedForDelete = remember { mutableStateListOf<Long>() }
-        val selectedAll by remember(completedChapters) {
-            derivedStateOf { selectedForDelete.size == completedChapters.size && completedChapters.isNotEmpty() }
+
+        val selectedInProgress = remember { mutableStateListOf<Long>() }
+        var isSelectingInProgress by remember { mutableStateOf(false) }
+
+        val selectedCompleted = remember { mutableStateListOf<Long>() }
+        val completedAllSelected by remember(completedChapters) {
+            derivedStateOf { selectedCompleted.size == completedChapters.size && completedChapters.isNotEmpty() }
         }
-        val anySelected by remember(completedChapters) {
-            derivedStateOf { selectedForDelete.isNotEmpty() }
+        val completedAnySelected by remember(completedChapters) {
+            derivedStateOf { selectedCompleted.isNotEmpty() }
+        }
+        val inProgressAnySelected by remember(queueState.inProgress) {
+            derivedStateOf { selectedInProgress.isNotEmpty() }
         }
 
         LaunchedEffect(Unit) {
@@ -83,20 +92,37 @@ object SRQueueScreen : VoyagerScreen {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(MR.strings.pref_sr_batch_queue)) },
+                    title = {
+                        Text(
+                            if (isSelectingInProgress)
+                                stringResource(MR.strings.sr_queue_selected_count, selectedInProgress.size)
+                            else
+                                stringResource(MR.strings.pref_sr_batch_queue),
+                        )
+                    },
                     navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
+                        IconButton(onClick = {
+                            if (isSelectingInProgress) {
+                                selectedInProgress.clear()
+                                isSelectingInProgress = false
+                            } else {
+                                navigator.pop()
+                            }
+                        }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
                     },
                     actions = {
                         if (completedChapters.isNotEmpty()) {
                             TextButton(onClick = {
-                                if (selectedAll) selectedForDelete.clear()
-                                else selectedForDelete.clear(); selectedForDelete.addAll(completedChapters.map { it.first })
+                                if (completedAllSelected) selectedCompleted.clear()
+                                else {
+                                    selectedCompleted.clear()
+                                    selectedCompleted.addAll(completedChapters.map { it.first })
+                                }
                             }) {
                                 Text(
-                                    if (selectedAll) stringResource(MR.strings.action_select_inverse)
+                                    if (completedAllSelected) stringResource(MR.strings.action_select_inverse)
                                     else stringResource(MR.strings.action_select_all),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -107,21 +133,34 @@ object SRQueueScreen : VoyagerScreen {
                 )
             },
             bottomBar = {
-                if (completedChapters.isNotEmpty() || queueState.inProgress.isNotEmpty()) {
+                if (inProgressAnySelected || completedAnySelected || completedChapters.isNotEmpty()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        if (inProgressAnySelected) {
+                            TextButton(
+                                onClick = {
+                                    selectedInProgress.toList().forEach { srSync.queueProcessor.cancel(it) }
+                                    selectedInProgress.clear()
+                                    isSelectingInProgress = false
+                                },
+                            ) {
+                                Icon(Icons.Outlined.Cancel, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(MR.strings.sr_queue_cancel_selected))
+                            }
+                        }
                         TextButton(
                             onClick = {
                                 val diskCache = SRCacheManager.getDiskCache()
-                                selectedForDelete.toList().forEach { diskCache.removeChapter(it) }
-                                completedChapters = completedChapters.filter { (id, _) -> id !in selectedForDelete }
-                                selectedForDelete.clear()
+                                selectedCompleted.toList().forEach { diskCache.removeChapter(it) }
+                                completedChapters = completedChapters.filter { (id, _) -> id !in selectedCompleted }
+                                selectedCompleted.clear()
                             },
-                            enabled = anySelected,
+                            enabled = completedAnySelected,
                         ) {
                             Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -133,7 +172,7 @@ object SRQueueScreen : VoyagerScreen {
                                 val diskCache = SRCacheManager.getDiskCache()
                                 completedChapters.forEach { (id, _) -> diskCache.removeChapter(id) }
                                 completedChapters = emptyList()
-                                selectedForDelete.clear()
+                                selectedCompleted.clear()
                             },
                             enabled = completedChapters.isNotEmpty(),
                         ) {
@@ -171,6 +210,22 @@ object SRQueueScreen : VoyagerScreen {
                     items(queueState.inProgress, key = { it.chapterId }) { item ->
                         InProgressItem(
                             item = item,
+                            isSelecting = isSelectingInProgress,
+                            checked = item.chapterId in selectedInProgress,
+                            onLongClick = {
+                                if (!isSelectingInProgress) {
+                                    isSelectingInProgress = true
+                                    selectedInProgress.add(item.chapterId)
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            },
+                            onClick = {
+                                if (isSelectingInProgress) {
+                                    if (item.chapterId in selectedInProgress) selectedInProgress.remove(item.chapterId)
+                                    else selectedInProgress.add(item.chapterId)
+                                    if (selectedInProgress.isEmpty()) isSelectingInProgress = false
+                                }
+                            },
                             onCancel = { srSync.queueProcessor.cancel(it) },
                         )
                     }
@@ -209,10 +264,10 @@ object SRQueueScreen : VoyagerScreen {
                             CompletedItem(
                                 chapterId = chapterId,
                                 meta = meta,
-                                checked = chapterId in selectedForDelete,
+                                checked = chapterId in selectedCompleted,
                                 onToggle = { id ->
-                                    if (selectedForDelete.contains(id)) selectedForDelete.remove(id)
-                                    else selectedForDelete.add(id)
+                                    if (selectedCompleted.contains(id)) selectedCompleted.remove(id)
+                                    else selectedCompleted.add(id)
                                 },
                             )
                         }
@@ -225,17 +280,34 @@ object SRQueueScreen : VoyagerScreen {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun InProgressItem(
     item: SRQueueItem,
+    isSelecting: Boolean,
+    checked: Boolean,
+    onLongClick: () -> Unit,
+    onClick: () -> Unit,
     onCancel: (Long) -> Unit,
 ) {
+    val progress = if (item.totalPages > 0) item.processedPages.toFloat() / item.totalPages else 0f
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (isSelecting) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = { onClick() },
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.chapterName,
@@ -250,14 +322,26 @@ private fun InProgressItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            LinearProgressIndicator(
-                progress = { if (item.totalPages > 0) item.processedPages.toFloat() / item.totalPages else 0f },
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.weight(1f).padding(top = 4.dp),
+                )
+                if (item.totalPages > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${item.processedPages}/${item.totalPages}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
-        Spacer(Modifier.width(8.dp))
-        IconButton(onClick = { onCancel(item.chapterId) }) {
-            Icon(Icons.Outlined.Cancel, contentDescription = null)
+        if (!isSelecting) {
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { onCancel(item.chapterId) }) {
+                Icon(Icons.Outlined.Cancel, contentDescription = null)
+            }
         }
     }
 }

@@ -183,11 +183,24 @@ class SRQueueProcessor(
                     continue
                 }
 
+                queueMutex.withLock {
+                    val idx = queue.indexOfFirst { it.chapterId == item.chapterId }
+                    if (idx >= 0) {
+                        queue[idx] = queue[idx].copy(totalPages = images.size)
+                        persistLocked()
+                        _state.value = _state.value.copy(inProgress = queue.toList())
+                    }
+                }
+
                 val version = manager.currentModelVersion()
                 var processed = 0
 
                 for (image in images) {
                     currentCoroutineContext().ensureActive()
+                    if (queueMutex.withLock { item.chapterId in cancelledIds }) {
+                        logcat(LogPriority.DEBUG) { "SR: Ch${item.chapterId} cancelled mid-processing at page $processed/${images.size}" }
+                        break
+                    }
                     val pageIndex = processed
                     val cacheKey = manager.buildCacheKey(item.chapterId, pageIndex)
                     if (diskCache.get(cacheKey) != null) {

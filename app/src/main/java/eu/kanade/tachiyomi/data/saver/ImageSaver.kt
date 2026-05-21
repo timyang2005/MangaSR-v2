@@ -165,7 +165,11 @@ sealed class Image(
                 is Cover -> {
                     {
                         val baos = ByteArrayOutputStream()
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 90, baos)
+                        } else {
+                            bitmap.compress(Bitmap.CompressFormat.WEBP, 90, baos)
+                        }
                         ByteArrayInputStream(baos.toByteArray())
                     }
                 }
