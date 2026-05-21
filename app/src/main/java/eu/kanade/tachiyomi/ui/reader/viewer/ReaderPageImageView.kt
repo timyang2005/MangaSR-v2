@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.data.coil.cropBorders
 import eu.kanade.tachiyomi.data.coil.customDecoder
 import eu.kanade.tachiyomi.data.coil.pageIndex
 import eu.kanade.tachiyomi.data.coil.superResolution
+import eu.kanade.tachiyomi.data.sr.SRCacheManager
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonSubsamplingImageView
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
@@ -359,6 +360,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         readerPage?.srBitmap = preloadedSr
                         onSrStatusChanged?.invoke(true)
                         logcat(LogPriority.INFO) { "SR: Preload hit for ch$chId p$pageIdx ${preloadedSr.width}x${preloadedSr.height}" }
+                        return@apply
+                    }
+
+                    val batchSr = SRCacheManager.diskCache.getBatchPageAnySource(chId, pageIdx)
+                    if (batchSr != null) {
+                        setImage(ImageSource.bitmap(batchSr))
+                        isVisible = true
+                        readerPage?.srBitmap = batchSr
+                        onSrStatusChanged?.invoke(true)
+                        logcat(LogPriority.INFO) { "SR: Batch cache hit for ch$chId p$pageIdx ${batchSr.width}x${batchSr.height}" }
                         return@apply
                     }
                 } else {

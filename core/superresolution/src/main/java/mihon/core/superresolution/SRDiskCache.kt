@@ -176,13 +176,26 @@ class SRDiskCache(
 
     fun getBatchPage(sourceName: String, mangaTitle: String, chapterId: Long, pageIndex: Int): Bitmap? {
         val dir = batchChapterDir(sourceName, mangaTitle, chapterId)
+        return readBatchPageFile(dir, pageIndex)
+    }
+
+    fun getBatchPageAnySource(chapterId: Long, pageIndex: Int): Bitmap? {
+        if (!batchDir.exists()) return null
+        batchDir.walkTopDown().filter { it.isDirectory && it.name == chapterId.toString() }.forEach { dir ->
+            val bitmap = readBatchPageFile(dir, pageIndex)
+            if (bitmap != null) return bitmap
+        }
+        return null
+    }
+
+    private fun readBatchPageFile(dir: File, pageIndex: Int): Bitmap? {
         val ext = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) "webp" else "jpg"
         val file = File(dir, "${pageIndex.toString().padStart(3, '0')}.$ext")
         if (!file.exists()) return null
         return try {
             BitmapFactory.decodeFile(file.absolutePath)
         } catch (e: Exception) {
-            logcat(LogPriority.ERROR) { "SR: Failed to read batch page $pageIndex ch$chapterId\n${e.asLog()}" }
+            logcat(LogPriority.ERROR) { "SR: Failed to read batch page $pageIndex from $dir\n${e.asLog()}" }
             null
         }
     }
