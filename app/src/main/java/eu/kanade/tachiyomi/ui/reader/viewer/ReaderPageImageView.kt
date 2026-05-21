@@ -188,6 +188,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
     private var srStartTimestamp: Long? = null
 
     private fun scheduleSrRefresh(manager: SuperResolutionManager) {
+        if (!manager.isReady) return
         cancelSrRefresh()
         val page = readerPage ?: return
         val chId = page.chapter.chapter.id ?: -1L

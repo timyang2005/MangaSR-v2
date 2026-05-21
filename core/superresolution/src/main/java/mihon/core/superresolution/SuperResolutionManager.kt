@@ -107,19 +107,19 @@ class SuperResolutionManager(
         }
     }
 
-    fun switchModel(
+    suspend fun switchModel(
         model: SRModel,
         scale: Int = 2,
         denoiseLevel: DenoiseLevel = DenoiseLevel.LIGHT,
         bwConfig: MangaBWPostProcessConfig? = null,
-    ) {
+    ) = mutex.withLock {
         logcat(LogPriority.INFO) { "SR: switchModel called: model=${model.key}, scale=$scale, denoise=$denoiseLevel, readerOverride=$readerOverride" }
 
         if (currentModel == model && currentScale == scale && currentProcessor?.isReady == true) {
             currentDenoiseLevel = denoiseLevel
             currentBwConfig = bwConfig
             logcat(LogPriority.DEBUG) { "SR: Same model and scale, updating denoise/bw config" }
-            return
+            return@withLock
         }
 
         pendingModelKey = model.key
