@@ -25,3 +25,6 @@ ci_logs/
 
 # NDK runtime libs (copied during CI build)
 core/superresolution/src/main/jniLibs/
+
+# C++ build artifacts
+.cxx/

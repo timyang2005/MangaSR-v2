@@ -173,7 +173,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         }
 
         Injekt.get<SuperResolutionManager>().ensureModelsExtracted()
-        SuperResolutionSync().start()
+        Injekt.get<SuperResolutionSync>().start()
         initializeMigrator()
     }
 

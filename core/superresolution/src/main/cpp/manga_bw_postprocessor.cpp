@@ -94,21 +94,28 @@ void binarizeEnhance(unsigned char* rgba_data, int width, int height, int thresh
 }
 
 static void morphErode(unsigned char* data, int width, int height, int radius) {
+    if (radius <= 0) return;
     std::vector<unsigned char> temp(width * height);
-    memcpy(temp.data(), data, width * height);
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             unsigned char min_val = 255;
-            int start_y = std::max(0, y - radius);
-            int end_y = std::min(height - 1, y + radius);
             int start_x = std::max(0, x - radius);
             int end_x = std::min(width - 1, x + radius);
-            
+            for (int dx = start_x; dx <= end_x; dx++) {
+                min_val = std::min(min_val, data[y * width + dx]);
+            }
+            temp[y * width + x] = min_val;
+        }
+    }
+
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            unsigned char min_val = 255;
+            int start_y = std::max(0, y - radius);
+            int end_y = std::min(height - 1, y + radius);
             for (int dy = start_y; dy <= end_y; dy++) {
-                for (int dx = start_x; dx <= end_x; dx++) {
-                    min_val = std::min(min_val, temp[dy * width + dx]);
-                }
+                min_val = std::min(min_val, temp[dy * width + x]);
             }
             data[y * width + x] = min_val;
         }
@@ -116,21 +123,28 @@ static void morphErode(unsigned char* data, int width, int height, int radius) {
 }
 
 static void morphDilate(unsigned char* data, int width, int height, int radius) {
+    if (radius <= 0) return;
     std::vector<unsigned char> temp(width * height);
-    memcpy(temp.data(), data, width * height);
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             unsigned char max_val = 0;
-            int start_y = std::max(0, y - radius);
-            int end_y = std::min(height - 1, y + radius);
             int start_x = std::max(0, x - radius);
             int end_x = std::min(width - 1, x + radius);
-            
+            for (int dx = start_x; dx <= end_x; dx++) {
+                max_val = std::max(max_val, data[y * width + dx]);
+            }
+            temp[y * width + x] = max_val;
+        }
+    }
+
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            unsigned char max_val = 0;
+            int start_y = std::max(0, y - radius);
+            int end_y = std::min(height - 1, y + radius);
             for (int dy = start_y; dy <= end_y; dy++) {
-                for (int dx = start_x; dx <= end_x; dx++) {
-                    max_val = std::max(max_val, temp[dy * width + dx]);
-                }
+                max_val = std::max(max_val, temp[dy * width + x]);
             }
             data[y * width + x] = max_val;
         }

@@ -1,6 +1,7 @@
 plugins {
     alias(mihonx.plugins.android.library)
     alias(libs.plugins.kotlin.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -52,4 +53,6 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.injekt)
+
+    implementation(libs.kotlinx.serialization.json)
 }

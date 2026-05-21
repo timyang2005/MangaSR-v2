@@ -784,7 +784,15 @@ class ReaderViewModel @JvmOverloads constructor(
     }
 
     private fun getSrBitmap(page: ReaderPage): android.graphics.Bitmap? {
-        return page.srBitmap
+        page.srBitmap?.let { return it }
+        val chId = page.chapter.chapter.id ?: -1L
+        val cacheKey = srManager.buildCacheKey(chId, page.index)
+        srManager.getCachedResult(cacheKey)?.let { return it }
+        return try {
+            Injekt.get<SRPreloadDispatcher>().getSrBitmap(chId, page.index)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun onSrStatusChanged(page: ReaderPage, completed: Boolean) {

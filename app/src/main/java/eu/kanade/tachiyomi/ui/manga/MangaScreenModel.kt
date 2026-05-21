@@ -32,6 +32,7 @@ import eu.kanade.presentation.manga.DownloadAction
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.data.download.DownloadCache
+import eu.kanade.tachiyomi.data.sr.SuperResolutionSync
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.data.track.EnhancedTracker
@@ -708,6 +709,21 @@ class MangaScreenModel(
             }
             ChapterDownloadAction.DELETE -> {
                 deleteChapters(items.map { it.chapter })
+            }
+        }
+    }
+
+    fun batchSrChapters(chapters: List<Chapter>) {
+        launchIO {
+            try {
+                val srSync = Injekt.get<SuperResolutionSync>()
+                val manga = successState?.manga ?: return@launchIO
+                srSync.queueProcessor.enqueue(chapters, manga.title, manga.source)
+                snackbarHostState.showSnackbar(
+                    context.stringResource(MR.strings.sr_batch_enqueued, chapters.size),
+                )
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "SR batch enqueue failed: ${e.message}" }
             }
         }
     }

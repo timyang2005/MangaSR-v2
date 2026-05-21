@@ -44,6 +44,9 @@ class SuperResolutionManager(
     private var modelVersion: Long = 0
 
     @Volatile
+    private var pendingModelKey: String? = null
+
+    @Volatile
     var readerOverride: Boolean = false
         private set
 
@@ -62,7 +65,11 @@ class SuperResolutionManager(
         get() = currentDenoiseLevel
 
     val isVulkanAvailable: Boolean by lazy {
-        VulkanHelper.isVulkanSupported(context) && VulkanHelper.getGpuCount() > 0
+        VulkanHelper.isVulkanSupported(context) && VulkanHelper.gpuCount > 0
+    }
+
+    fun getCacheUsage(): Pair<Int, Long> = synchronized(cacheLock) {
+        srCache.size to srCache.values.sumOf { it.allocationByteCount.toLong() }
     }
 
     fun getCachedResult(cacheKey: String): Bitmap? = synchronized(cacheLock) { srCache[cacheKey] }
@@ -76,8 +83,10 @@ class SuperResolutionManager(
     }
 
     fun clearSrCache() = synchronized(cacheLock) {
+        val size = srCache.size
+        val bytes = srCache.values.sumOf { it.allocationByteCount.toLong() }
         srCache.clear()
-        logcat(LogPriority.INFO) { "SR: Cleared SR result cache" }
+        logcat(LogPriority.INFO) { "SR: Cleared SR result cache ($size entries, ${bytes / 1024}KB)" }
     }
 
     fun registerProcessingJob(job: Job) {
@@ -93,73 +102,82 @@ class SuperResolutionManager(
 
     private fun cancelAllProcessingJobs() {
         synchronized(jobsMutex) {
-            logcat(LogPriority.INFO) { "SR: Cancelling ${processingJobs.size} processing jobs" }
             processingJobs.forEach { it.cancel() }
             processingJobs.clear()
         }
     }
 
-    suspend fun switchModel(
+    fun switchModel(
         model: SRModel,
         scale: Int = 2,
         denoiseLevel: DenoiseLevel = DenoiseLevel.LIGHT,
         bwConfig: MangaBWPostProcessConfig? = null,
     ) {
-        mutex.withLock {
-            logcat(LogPriority.INFO) { "SR: switchModel called: model=${model.key}, scale=$scale, denoise=$denoiseLevel, readerOverride=$readerOverride" }
+        logcat(LogPriority.INFO) { "SR: switchModel called: model=${model.key}, scale=$scale, denoise=$denoiseLevel, readerOverride=$readerOverride" }
 
-            if (currentModel == model && currentScale == scale && currentProcessor?.isReady == true) {
-                currentDenoiseLevel = denoiseLevel
-                currentBwConfig = bwConfig
-                logcat(LogPriority.DEBUG) { "SR: Same model and scale, updating denoise/bw config" }
-                return@withLock
-            }
+        if (currentModel == model && currentScale == scale && currentProcessor?.isReady == true) {
+            currentDenoiseLevel = denoiseLevel
+            currentBwConfig = bwConfig
+            logcat(LogPriority.DEBUG) { "SR: Same model and scale, updating denoise/bw config" }
+            return
+        }
 
-            cancelAllProcessingJobs()
+        pendingModelKey = model.key
+        cancelAllProcessingJobs()
+        onModelSwitching?.invoke()
+        currentProcessor?.release()
+        currentProcessor = null
+        currentModel = model
+        currentDenoiseLevel = denoiseLevel
+        currentBwConfig = bwConfig
+        currentScale = scale
+        clearSrCache()
+        modelVersion++
+    }
 
-            onModelSwitching?.invoke()
+    private val loadMutex = Mutex()
 
-            currentProcessor?.release()
-            currentProcessor = null
-            currentModel = null
-            modelVersion++
-            clearSrCache()
-
-            val processor = createProcessor(model)
-            val modelPath = getModelPath(model)
-
-            withContext(Dispatchers.IO) {
-                try {
-                    val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
-                    processor.initialize(modelPath, gpuid)
-                    currentProcessor = processor
-                    currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
-                    logcat(LogPriority.INFO) { "SR engine switched to ${model.key}, scale=${scale}x, ready=${processor.isReady}" }
-                } catch (e: UnsatisfiedLinkError) {
-                    logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
-                    processor.release()
-                    currentProcessor = NoOpProcessor()
-                    currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
-                } catch (e: Exception) {
-                    logcat(LogPriority.ERROR) { "SR: Failed to initialize ${model.key}\n${e.asLog()}" }
-                    processor.release()
-                    currentProcessor = NoOpProcessor()
-                    currentModel = model
-                    currentScale = scale
-                    currentDenoiseLevel = denoiseLevel
-                    currentBwConfig = bwConfig
+    suspend fun ensureModelLoaded() {
+        if (pendingModelKey != null && currentProcessor == null) {
+            loadMutex.withLock {
+                if (pendingModelKey != null && currentProcessor == null) {
+                    loadPendingModel()
                 }
             }
         }
     }
 
+    private suspend fun loadPendingModel() {
+        val model = SRModel.fromKey(pendingModelKey!!)
+        val processor = createProcessor(model)
+        val modelPath = getModelPath(model)
+        withContext(Dispatchers.IO) {
+            try {
+                val gpuid = if (isVulkanAvailable && model.requiresVulkan) 0 else -1
+                val loadStart = System.currentTimeMillis()
+                processor.initialize(modelPath, gpuid)
+                val loadElapsed = System.currentTimeMillis() - loadStart
+                currentProcessor = processor
+                currentModel = model
+                logcat(LogPriority.INFO) { "SR: ${model.key} loaded in ${loadElapsed}ms, ready=${processor.isReady}" }
+            } catch (e: UnsatisfiedLinkError) {
+                logcat(LogPriority.ERROR) { "SR: Native library missing for ${model.key}, using NoOp\n${e.message}" }
+                processor.release()
+                currentProcessor = NoOpProcessor()
+                currentModel = model
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) { "SR: Failed to initialize ${model.key}\n${e.asLog()}" }
+                processor.release()
+                currentProcessor = NoOpProcessor()
+                currentModel = model
+            }
+        }
+        pendingModelKey = null
+    }
+
     suspend fun process(input: Bitmap, versionAtStart: Long): Bitmap = mutex.withLock {
+        ensureModelLoaded()
+
         val processor = currentProcessor
         if (processor == null || !processor.isReady) {
             logcat(LogPriority.DEBUG) { "SR: No processor ready, returning original" }
@@ -234,6 +252,11 @@ class SuperResolutionManager(
 
     private fun getModelPath(model: SRModel): String {
         return File(context.filesDir, "models/${model.modelDirName}").absolutePath
+    }
+
+    fun buildCacheKey(chapterId: Long, pageIndex: Int): String {
+        val modelKey = activeModel?.key ?: "unknown"
+        return "page_${chapterId}_${pageIndex}_${modelKey}_${activeScale}"
     }
 
     fun ensureModelsExtracted() {
