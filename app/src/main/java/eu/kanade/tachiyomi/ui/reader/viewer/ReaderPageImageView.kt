@@ -200,6 +200,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
             override fun run() {
                 attempts++
                 val cacheKey = buildSrCacheKey(chId, page.index, manager)
+                
+                // 检查内存缓存
                 val cached = manager.getCachedResult(cacheKey)
                 if (cached != null) {
                     (pageView as? SubsamplingScaleImageView)?.let { ssiv ->
@@ -207,9 +209,24 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         ssiv.isVisible = true
                     }
                     page.srBitmap = cached
-                    logcat(LogPriority.INFO) { "SR: Refreshed ch$chId p${page.index} with SR result ${cached.width}x${cached.height}" }
+                    logcat(LogPriority.INFO) { "SR: Memory cache hit ch$chId p${page.index} ${cached.width}x${cached.height}" }
                     return
                 }
+                
+                // 检查磁盘缓存（批量超分结果）
+                val diskCached = SRCacheManager.diskCache.getBatchPageAnySource(chId, page.index)
+                if (diskCached != null) {
+                    (pageView as? SubsamplingScaleImageView)?.let { ssiv ->
+                        ssiv.setImage(ImageSource.bitmap(diskCached))
+                        ssiv.isVisible = true
+                    }
+                    page.srBitmap = diskCached
+                    // 同时放入内存缓存加速后续访问
+                    manager.putCachedResult(cacheKey, diskCached)
+                    logcat(LogPriority.INFO) { "SR: Disk cache hit ch$chId p${page.index} ${diskCached.width}x${diskCached.height}" }
+                    return
+                }
+                
                 if (attempts < maxAttempts) {
                     srRefreshRunnable = this
                     postDelayed(this, SR_REFRESH_INTERVAL_MS)
@@ -499,4 +516,4 @@ open class ReaderPageImageView @JvmOverloads constructor(
 }
 
 private const val MAX_ZOOM_SCALE = 5F
-private const val SR_REFRESH_INTERVAL_MS = 300L
+private const val SR_REFRESH_INTERVAL_MS = 200L
