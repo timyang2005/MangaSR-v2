@@ -77,7 +77,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
     var onImageLoadError: ((Throwable?) -> Unit)? = null
     var onScaleChanged: ((newScale: Float) -> Unit)? = null
     var onViewClicked: (() -> Unit)? = null
-    var onSrStatusChanged: ((Boolean) -> Unit)? = null
 
     var pageBackground: Drawable? = null
 
@@ -193,7 +192,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
         val page = readerPage ?: return
         val chId = page.chapter.chapter.id ?: -1L
 
-        onSrStatusChanged?.invoke(false)
         srStartTimestamp = System.currentTimeMillis()
 
         var attempts = 0
@@ -209,7 +207,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         ssiv.isVisible = true
                     }
                     page.srBitmap = cached
-                    onSrStatusChanged?.invoke(true)
                     logcat(LogPriority.INFO) { "SR: Refreshed ch$chId p${page.index} with SR result ${cached.width}x${cached.height}" }
                     return
                 }
@@ -217,7 +214,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     srRefreshRunnable = this
                     postDelayed(this, SR_REFRESH_INTERVAL_MS)
                 } else {
-                    onSrStatusChanged?.invoke(true)
                     logcat(LogPriority.WARN) { "SR: Refresh timed out for ch$chId p${page.index} after $maxAttempts attempts" }
                 }
             }
@@ -348,7 +344,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         setImage(ImageSource.bitmap(cachedSr))
                         isVisible = true
                         readerPage?.srBitmap = cachedSr
-                        onSrStatusChanged?.invoke(true)
                         logcat(LogPriority.INFO) { "SR: Direct cache hit for ch$chId p$pageIdx ${cachedSr.width}x${cachedSr.height}" }
                         return@apply
                     }
@@ -359,7 +354,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         setImage(ImageSource.bitmap(preloadedSr))
                         isVisible = true
                         readerPage?.srBitmap = preloadedSr
-                        onSrStatusChanged?.invoke(true)
                         logcat(LogPriority.INFO) { "SR: Preload hit for ch$chId p$pageIdx ${preloadedSr.width}x${preloadedSr.height}" }
                         return@apply
                     }
@@ -369,7 +363,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         setImage(ImageSource.bitmap(batchSr))
                         isVisible = true
                         readerPage?.srBitmap = batchSr
-                        onSrStatusChanged?.invoke(true)
                         logcat(LogPriority.INFO) { "SR: Batch cache hit for ch$chId p$pageIdx ${batchSr.width}x${batchSr.height}" }
                         return@apply
                     }

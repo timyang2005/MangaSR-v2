@@ -41,9 +41,6 @@ class PagerPageHolder(
 
     init {
         readerPage = page
-        onSrStatusChanged = { completed ->
-            viewer.activity.viewModel.onSrStatusChanged(page, completed)
-        }
     }
 
     /**

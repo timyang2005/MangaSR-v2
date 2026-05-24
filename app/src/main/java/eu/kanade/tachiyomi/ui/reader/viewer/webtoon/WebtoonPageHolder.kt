@@ -86,9 +86,6 @@ class WebtoonPageHolder(
         frame.onImageLoaded = { onImageDecoded() }
         frame.onImageLoadError = { error -> setError(error) }
         frame.onScaleChanged = { viewer.activity.hideMenu() }
-        frame.onSrStatusChanged = { completed ->
-            page?.let { viewer.activity.viewModel.onSrStatusChanged(it, completed) }
-        }
     }
 
     /**

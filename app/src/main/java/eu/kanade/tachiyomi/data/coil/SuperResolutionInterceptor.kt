@@ -15,9 +15,6 @@ import logcat.LogPriority
 import logcat.asLog
 import logcat.logcat
 import mihon.core.superresolution.SRPreloadDispatcher
-import mihon.core.superresolution.SRStatus
-import mihon.core.superresolution.SRStatusInfo
-import mihon.core.superresolution.SRStatusViewModel
 import mihon.core.superresolution.SuperResolutionManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get

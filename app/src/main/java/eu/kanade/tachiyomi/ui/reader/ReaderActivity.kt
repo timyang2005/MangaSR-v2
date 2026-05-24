@@ -55,9 +55,6 @@ import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
-import eu.kanade.presentation.reader.SRStatusIndicator
-import mihon.core.superresolution.SRIndicatorPosition
-import mihon.core.superresolution.SRStatus
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.tachiyomi.R
@@ -242,11 +239,6 @@ class ReaderActivity : BaseActivity() {
                     }
                     ReaderViewModel.Event.PageChanged -> {
                         displayRefreshHost.flash()
-                        // 更新当前页面的 sr 状态
-                        val state = viewModel.state.value
-                        val currentChapter = state.viewerChapters?.currChapter
-                        val currentPage = currentChapter?.pages?.getOrNull(state.currentPage - 1) as? ReaderPage
-                        viewModel.onCurrentPageChanged(currentPage)
                     }
                     is ReaderViewModel.Event.SetOrientation -> {
                         setOrientation(event.orientation)
@@ -270,11 +262,7 @@ class ReaderActivity : BaseActivity() {
 
     private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent {
         val state by viewModel.state.collectAsState()
-        val srStatusInfo by viewModel.srStatusViewModel.srStatus.collectAsState()
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
-        val srIndicatorEnabled by readerPreferences.srIndicatorEnabled.collectAsState()
-        val srIndicatorPosition by readerPreferences.srIndicatorPosition.collectAsState()
-        val srEnabled by readerPreferences.srEnabled.collectAsState()
         val settingsScreenModel = remember {
             ReaderSettingsScreenModel(
                 readerState = viewModel.state,
@@ -282,10 +270,6 @@ class ReaderActivity : BaseActivity() {
                 onChangeOrientation = viewModel::setMangaOrientationType,
             )
         }
-
-        val isSrProcessed = srStatusInfo.status == SRStatus.DONE
-        val isSrActive = srManager.isReady
-        val shouldShowIndicator = isSrActive && srIndicatorEnabled && isSrProcessed
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (!state.menuVisible && showPageNumber) {
@@ -295,14 +279,6 @@ class ReaderActivity : BaseActivity() {
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding(),
-                )
-            }
-
-            if (!state.menuVisible && shouldShowIndicator) {
-                SRStatusIndicator(
-                    isSrProcessed = isSrProcessed,
-                    position = SRIndicatorPosition.fromKey(srIndicatorPosition),
-                    modifier = Modifier.fillMaxSize(),
                 )
             }
 

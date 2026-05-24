@@ -9,7 +9,6 @@ import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
 import mihon.core.superresolution.DenoiseLevel
 import mihon.core.superresolution.Quality
-import mihon.core.superresolution.SRIndicatorPosition
 import mihon.core.superresolution.SRModel
 
 class ReaderPreferences(
@@ -155,10 +154,6 @@ class ReaderPreferences(
     val srDensityCorrection: Preference<Boolean> = preferenceStore.getBoolean("pref_sr_density_correction", true)
 
     val srPreloadCount: Preference<Int> = preferenceStore.getInt("pref_sr_preload_count", 5)
-
-    val srIndicatorEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_sr_indicator_enabled", true)
-
-    val srIndicatorPosition: Preference<String> = preferenceStore.getString("pref_sr_indicator_position", SRIndicatorPosition.TOP_LEFT.key)
 
     // endregion
 
