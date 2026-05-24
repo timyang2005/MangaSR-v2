@@ -20,10 +20,21 @@ class RealESRGANProcessor(
             return
         }
         if (handle != 0L) release()
+
+        // Disable OpenMP thread affinity to prevent crashes on some devices
+        System.setProperty("KMP_AFFINITY", "disabled")
+        System.setProperty("OMP_NUM_THREADS", "1")
+
         val paramPath = "$modelPath/${model.modelDirName}.param"
         val binPath = "$modelPath/${model.modelDirName}.bin"
-        handle = nativeInit(paramPath, binPath, gpuid, model.modelType, true, model.scale)
-        logcat(LogPriority.INFO) { "RealESRGAN initialized: model=${model.key}, handle=$handle" }
+        try {
+            handle = nativeInit(paramPath, binPath, gpuid, model.modelType, true, model.scale)
+            logcat(LogPriority.INFO) { "RealESRGAN initialized: model=${model.key}, handle=$handle" }
+        } catch (e: Throwable) {
+            // Catch any throwable including native crashes
+            logcat(LogPriority.ERROR) { "RealESRGAN native init failed: ${e.message}" }
+            handle = 0L
+        }
     }
 
     override fun process(
