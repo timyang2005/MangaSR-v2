@@ -19,7 +19,6 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsScreenModel
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import mihon.core.superresolution.DenoiseLevel
 import mihon.core.superresolution.Quality
-import mihon.core.superresolution.SRIndicatorDisplayMode
 import mihon.core.superresolution.SRIndicatorPosition
 import mihon.core.superresolution.SRModel
 import tachiyomi.i18n.MR
@@ -400,7 +399,6 @@ private fun ColumnScope.SrIndicatorSettings(
     preferences: ReaderPreferences,
 ) {
     val srIndicatorPosition by preferences.srIndicatorPosition.preferenceCollectAsState()
-    val srIndicatorMode by preferences.srIndicatorMode.preferenceCollectAsState()
 
     HeadingItem(stringResource(MR.strings.pref_sr_indicator_position))
     FlowRow(
@@ -420,28 +418,6 @@ private fun ColumnScope.SrIndicatorSettings(
                             SRIndicatorPosition.BOTTOM_LEFT -> stringResource(MR.strings.sr_indicator_position_bottom_left)
                             SRIndicatorPosition.BOTTOM_CENTER -> stringResource(MR.strings.sr_indicator_position_bottom_center)
                             SRIndicatorPosition.BOTTOM_RIGHT -> stringResource(MR.strings.sr_indicator_position_bottom_right)
-                        },
-                    )
-                },
-            )
-        }
-    }
-
-    HeadingItem(stringResource(MR.strings.pref_sr_indicator_mode))
-    FlowRow(
-        modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SRIndicatorDisplayMode.entries.map { mode ->
-            FilterChip(
-                selected = srIndicatorMode == mode.key,
-                onClick = { preferences.srIndicatorMode.set(mode.key) },
-                label = {
-                    Text(
-                        when (mode) {
-                            SRIndicatorDisplayMode.HIDDEN -> stringResource(MR.strings.sr_indicator_mode_hidden)
-                            SRIndicatorDisplayMode.ICON_ONLY -> stringResource(MR.strings.sr_indicator_mode_icon)
-                            SRIndicatorDisplayMode.ICON_AND_TEXT -> stringResource(MR.strings.sr_indicator_mode_icon_text)
                         },
                     )
                 },

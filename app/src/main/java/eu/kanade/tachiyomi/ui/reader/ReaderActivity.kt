@@ -56,10 +56,8 @@ import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
 import eu.kanade.presentation.reader.ReadingModeSelectDialog
 import eu.kanade.presentation.reader.SRStatusIndicator
-import mihon.core.superresolution.SRIndicatorDisplayMode
 import mihon.core.superresolution.SRIndicatorPosition
 import mihon.core.superresolution.SRStatus
-import mihon.core.superresolution.SRStatusInfo
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.tachiyomi.R
@@ -275,7 +273,6 @@ class ReaderActivity : BaseActivity() {
         val srStatusInfo by viewModel.srStatusViewModel.srStatus.collectAsState()
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
         val srIndicatorPosition by readerPreferences.srIndicatorPosition.collectAsState()
-        val srIndicatorMode by readerPreferences.srIndicatorMode.collectAsState()
         val settingsScreenModel = remember {
             ReaderSettingsScreenModel(
                 readerState = viewModel.state,
@@ -283,6 +280,8 @@ class ReaderActivity : BaseActivity() {
                 onChangeOrientation = viewModel::setMangaOrientationType,
             )
         }
+
+        val isSrProcessed = srStatusInfo.status == SRStatus.DONE
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (!state.menuVisible && showPageNumber) {
@@ -297,9 +296,8 @@ class ReaderActivity : BaseActivity() {
 
             if (!state.menuVisible) {
                 SRStatusIndicator(
-                    statusInfo = srStatusInfo,
+                    isSrProcessed = isSrProcessed,
                     position = SRIndicatorPosition.fromKey(srIndicatorPosition),
-                    displayMode = SRIndicatorDisplayMode.fromKey(srIndicatorMode),
                     modifier = Modifier.fillMaxSize(),
                 )
             }
