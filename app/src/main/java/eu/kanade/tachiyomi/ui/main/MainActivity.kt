@@ -91,6 +91,7 @@ import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
+import eu.kanade.tachiyomi.util.system.PermissionManager
 import eu.kanade.tachiyomi.util.system.dpToPx
 import eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim
 import eu.kanade.tachiyomi.util.system.updaterEnabled
@@ -155,6 +156,12 @@ class MainActivity : BaseActivity() {
         if (!isTaskRoot) {
             finish()
             return
+        }
+
+        // Request permissions on launch
+        if (isLaunch) {
+            PermissionManager.requestQueryPackagesPermission(this)
+            PermissionManager.requestNotificationPermission(this)
         }
 
         setComposeContent {

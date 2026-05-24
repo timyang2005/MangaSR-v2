@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.notification.Notifications
+import eu.kanade.tachiyomi.util.system.PermissionManager
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import kotlinx.coroutines.CoroutineScope
@@ -299,6 +300,7 @@ class SRQueueProcessor(
     }
 
     private fun showProgressNotification(item: SRQueueItem) {
+        if (!PermissionManager.hasNotificationPermission(context)) return
         try {
             val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_PROGRESS)
                 .setContentTitle(context.stringResource(MR.strings.sr_notification_group))
@@ -314,6 +316,7 @@ class SRQueueProcessor(
     }
 
     private fun showCompletionNotification() {
+        if (!PermissionManager.hasNotificationPermission(context)) return
         try {
             NotificationManagerCompat.from(context).cancel(Notifications.ID_SR_PROGRESS)
             val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_COMPLETE)
