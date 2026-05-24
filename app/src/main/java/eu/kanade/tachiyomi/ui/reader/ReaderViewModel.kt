@@ -842,6 +842,18 @@ class ReaderViewModel @JvmOverloads constructor(
 
         val activeModel = srManager.activeModel ?: SRModel.REALCUGAN_2X_CONSERVATIVE
 
+        // 检查缓存中是否有该页面的超分结果（用于批量超分完成的情况）
+        if (page.srStatus == SRStatus.IDLE) {
+            val chId = page.chapter.chapter.id ?: -1L
+            val cacheKey = srManager.buildCacheKey(chId, page.index)
+            val cached = srManager.getCachedResult(cacheKey)
+            if (cached != null) {
+                page.srStatus = SRStatus.DONE
+                page.srBitmap = cached
+                page.srModel = srManager.activeModel
+            }
+        }
+
         when (page.srStatus) {
             SRStatus.DONE -> {
                 srStatusViewModel.onSRDone(
