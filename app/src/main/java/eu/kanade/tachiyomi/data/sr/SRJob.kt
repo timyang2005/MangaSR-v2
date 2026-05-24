@@ -20,8 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import logcat.LogPriority
 import logcat.logcat
-import tachiyomi.core.common.i18n.stringResource
-import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 

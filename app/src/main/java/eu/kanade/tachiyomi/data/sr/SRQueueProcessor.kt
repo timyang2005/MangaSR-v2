@@ -7,6 +7,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.notification.Notifications
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.i18n.MR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -299,7 +301,7 @@ class SRQueueProcessor(
     private fun showProgressNotification(item: SRQueueItem) {
         try {
             val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_PROGRESS)
-                .setContentTitle("Super Resolution")
+                .setContentTitle(context.stringResource(MR.strings.sr_notification_group))
                 .setContentText("${item.mangaTitle} - ${item.chapterName}")
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setOngoing(true)
@@ -313,14 +315,14 @@ class SRQueueProcessor(
 
     private fun showCompletionNotification() {
         try {
+            NotificationManagerCompat.from(context).cancel(Notifications.ID_SR_PROGRESS)
             val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_COMPLETE)
-                .setContentTitle("Super Resolution Complete")
-                .setContentText("All queued chapters have been processed")
+                .setContentTitle(context.stringResource(MR.strings.sr_notification_complete_title))
+                .setContentText(context.stringResource(MR.strings.sr_notification_complete_text))
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setAutoCancel(true)
                 .build()
             NotificationManagerCompat.from(context).notify(Notifications.ID_SR_COMPLETE, notification)
-            NotificationManagerCompat.from(context).cancel(Notifications.ID_SR_PROGRESS)
         } catch (e: Exception) {
             logcat(LogPriority.WARN) { "SR: Failed to show completion notification: ${e.message}" }
         }

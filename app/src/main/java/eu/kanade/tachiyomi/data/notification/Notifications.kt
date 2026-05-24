@@ -124,7 +124,7 @@ object Notifications {
                     setName(context.stringResource(MR.strings.label_recent_updates))
                 },
                 buildNotificationChannelGroup(GROUP_SR) {
-                    setName("Super Resolution")
+                    setName(context.stringResource(MR.strings.sr_notification_group))
                 },
             ),
         )
@@ -180,12 +180,12 @@ object Notifications {
                     setName(context.stringResource(MR.strings.channel_ext_updates))
                 },
                 buildNotificationChannel(CHANNEL_SR_PROGRESS, IMPORTANCE_LOW) {
-                    setName("SR Progress")
+                    setName(context.stringResource(MR.strings.sr_notification_progress))
                     setGroup(GROUP_SR)
                     setShowBadge(false)
                 },
                 buildNotificationChannel(CHANNEL_SR_COMPLETE, IMPORTANCE_DEFAULT) {
-                    setName("SR Complete")
+                    setName(context.stringResource(MR.strings.sr_notification_complete))
                     setGroup(GROUP_SR)
                 },
             ),

@@ -1135,4 +1135,10 @@
     <string name="sr_queue_none">None</string>
     <string name="sr_queue_cancel_selected">Cancel selected</string>
     <string name="sr_queue_selected_count">%d selected</string>
+    <string name="sr_notification_group">Super Resolution</string>
+    <string name="sr_notification_progress">SR Progress</string>
+    <string name="sr_notification_complete">SR Complete</string>
+    <string name="sr_notification_processing">Processing images…</string>
+    <string name="sr_notification_complete_title">Super Resolution Complete</string>
+    <string name="sr_notification_complete_text">All queued chapters have been processed</string>
 </resources>

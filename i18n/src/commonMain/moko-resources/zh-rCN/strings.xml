@@ -992,4 +992,10 @@
     <string name="sr_queue_none">无</string>
     <string name="sr_queue_cancel_selected">取消选中</string>
     <string name="sr_queue_selected_count">%d 个已选</string>
+    <string name="sr_notification_group">超分辨率</string>
+    <string name="sr_notification_progress">超分进度</string>
+    <string name="sr_notification_complete">超分完成</string>
+    <string name="sr_notification_processing">正在处理图片…</string>
+    <string name="sr_notification_complete_title">超分辨率处理完成</string>
+    <string name="sr_notification_complete_text">所有队列中的章节已处理完毕</string>
 </resources>
