@@ -284,7 +284,8 @@ class ReaderActivity : BaseActivity() {
         }
 
         val isSrProcessed = srStatusInfo.status == SRStatus.DONE
-        val shouldShowIndicator = srEnabled && srIndicatorEnabled && isSrProcessed
+        val isSrActive = srManager.isReady
+        val shouldShowIndicator = isSrActive && srIndicatorEnabled && isSrProcessed
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (!state.menuVisible && showPageNumber) {
