@@ -65,6 +65,15 @@ object Notifications {
     const val ID_INCOGNITO_MODE = -701
 
     /**
+     * Notification channel and ids used by the SR queue processor.
+     */
+    private const val GROUP_SR = "group_sr"
+    const val CHANNEL_SR_PROGRESS = "sr_progress_channel"
+    const val ID_SR_PROGRESS = -601
+    const val CHANNEL_SR_COMPLETE = "sr_complete_channel"
+    const val ID_SR_COMPLETE = -602
+
+    /**
      * Notification channel and ids used for app and extension updates.
      */
     private const val GROUP_APK_UPDATES = "group_apk_updates"
@@ -113,6 +122,9 @@ object Notifications {
                 },
                 buildNotificationChannelGroup(GROUP_APK_UPDATES) {
                     setName(context.stringResource(MR.strings.label_recent_updates))
+                },
+                buildNotificationChannelGroup(GROUP_SR) {
+                    setName("Super Resolution")
                 },
             ),
         )
@@ -166,6 +178,15 @@ object Notifications {
                 buildNotificationChannel(CHANNEL_EXTENSIONS_UPDATE, IMPORTANCE_DEFAULT) {
                     setGroup(GROUP_APK_UPDATES)
                     setName(context.stringResource(MR.strings.channel_ext_updates))
+                },
+                buildNotificationChannel(CHANNEL_SR_PROGRESS, IMPORTANCE_LOW) {
+                    setName("SR Progress")
+                    setGroup(GROUP_SR)
+                    setShowBadge(false)
+                },
+                buildNotificationChannel(CHANNEL_SR_COMPLETE, IMPORTANCE_DEFAULT) {
+                    setName("SR Complete")
+                    setGroup(GROUP_SR)
                 },
             ),
         )

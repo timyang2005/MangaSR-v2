@@ -18,6 +18,7 @@ import mihon.core.superresolution.SRQueueStore
 import mihon.core.superresolution.SuperResolutionManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import uy.kohesive.injekt.api.addSingleton
 
 class SuperResolutionSync(
     private val preferences: ReaderPreferences = Injekt.get(),
@@ -40,6 +41,9 @@ class SuperResolutionSync(
         val queueStore = SRQueueStore(context)
         val downloadProvider = Injekt.get<DownloadProvider>()
         queueProcessor = SRQueueProcessor(manager, diskCache, queueStore, downloadProvider, context)
+
+        // Register for SRJob to access
+        Injekt.addSingleton(queueProcessor)
 
         scope.launch {
             combine(

@@ -3,7 +3,10 @@ package eu.kanade.tachiyomi.data.sr
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import eu.kanade.tachiyomi.data.download.DownloadProvider
+import eu.kanade.tachiyomi.data.notification.Notifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,7 +56,10 @@ class SRQueueProcessor(
 
     private val queueMutex = Mutex()
     private val queue = mutableListOf<SRQueueItem>()
-    private var running = false
+    private var _running = false
+
+    val isRunning: Boolean
+        get() = _running
 
     private val cancelledIds = mutableSetOf<Long>()
 
@@ -111,8 +117,13 @@ class SRQueueProcessor(
     }
 
     private fun ensureRunning() {
-        if (running) return
-        running = true
+        if (_running) return
+        SRJob.start(context)
+    }
+
+    fun start() {
+        if (_running) return
+        _running = true
         scope.launch { runLoop() }
     }
 
@@ -126,12 +137,15 @@ class SRQueueProcessor(
             val item: SRQueueItem
             queueMutex.withLock {
                 if (queue.isEmpty()) {
-                    running = false
+                    _running = false
+                    showCompletionNotification()
                     return
                 }
                 item = queue.first()
                 _state.value = _state.value.copy(inProgress = queue.toList())
             }
+
+            showProgressNotification(item)
 
             val chapter = runCatching { getChapter.await(item.chapterId) }.getOrNull()
             val manga = runCatching { getManga.await(item.mangaId) }.getOrNull()
@@ -279,6 +293,36 @@ class SRQueueProcessor(
                 persistLocked()
                 _state.value = _state.value.copy(inProgress = queue.toList())
             }
+        }
+    }
+
+    private fun showProgressNotification(item: SRQueueItem) {
+        try {
+            val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_PROGRESS)
+                .setContentTitle("Super Resolution")
+                .setContentText("${item.mangaTitle} - ${item.chapterName}")
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setOngoing(true)
+                .setSilent(true)
+                .build()
+            NotificationManagerCompat.from(context).notify(Notifications.ID_SR_PROGRESS, notification)
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN) { "SR: Failed to show notification: ${e.message}" }
+        }
+    }
+
+    private fun showCompletionNotification() {
+        try {
+            val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_SR_COMPLETE)
+                .setContentTitle("Super Resolution Complete")
+                .setContentText("All queued chapters have been processed")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setAutoCancel(true)
+                .build()
+            NotificationManagerCompat.from(context).notify(Notifications.ID_SR_COMPLETE, notification)
+            NotificationManagerCompat.from(context).cancel(Notifications.ID_SR_PROGRESS)
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN) { "SR: Failed to show completion notification: ${e.message}" }
         }
     }
 }
