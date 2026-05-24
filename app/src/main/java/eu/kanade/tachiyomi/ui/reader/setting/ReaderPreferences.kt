@@ -156,6 +156,8 @@ class ReaderPreferences(
 
     val srPreloadCount: Preference<Int> = preferenceStore.getInt("pref_sr_preload_count", 5)
 
+    val srIndicatorEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_sr_indicator_enabled", true)
+
     val srIndicatorPosition: Preference<String> = preferenceStore.getString("pref_sr_indicator_position", SRIndicatorPosition.TOP_LEFT.key)
 
     // endregion

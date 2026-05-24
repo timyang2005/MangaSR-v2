@@ -398,30 +398,38 @@ internal fun ColumnScope.GeneralPage(screenModel: ReaderSettingsScreenModel) {
 private fun ColumnScope.SrIndicatorSettings(
     preferences: ReaderPreferences,
 ) {
-    val srIndicatorPosition by preferences.srIndicatorPosition.preferenceCollectAsState()
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_sr_indicator_enabled),
+        pref = preferences.srIndicatorEnabled,
+    )
 
-    HeadingItem(stringResource(MR.strings.pref_sr_indicator_position))
-    FlowRow(
-        modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        SRIndicatorPosition.entries.map { position ->
-            FilterChip(
-                selected = srIndicatorPosition == position.key,
-                onClick = { preferences.srIndicatorPosition.set(position.key) },
-                label = {
-                    Text(
-                        when (position) {
-                            SRIndicatorPosition.TOP_LEFT -> stringResource(MR.strings.sr_indicator_position_top_left)
-                            SRIndicatorPosition.TOP_CENTER -> stringResource(MR.strings.sr_indicator_position_top_center)
-                            SRIndicatorPosition.TOP_RIGHT -> stringResource(MR.strings.sr_indicator_position_top_right)
-                            SRIndicatorPosition.BOTTOM_LEFT -> stringResource(MR.strings.sr_indicator_position_bottom_left)
-                            SRIndicatorPosition.BOTTOM_CENTER -> stringResource(MR.strings.sr_indicator_position_bottom_center)
-                            SRIndicatorPosition.BOTTOM_RIGHT -> stringResource(MR.strings.sr_indicator_position_bottom_right)
-                        },
-                    )
-                },
-            )
+    val srIndicatorEnabled by preferences.srIndicatorEnabled.preferenceCollectAsState()
+    if (srIndicatorEnabled) {
+        val srIndicatorPosition by preferences.srIndicatorPosition.preferenceCollectAsState()
+
+        HeadingItem(stringResource(MR.strings.pref_sr_indicator_position))
+        FlowRow(
+            modifier = Modifier.padding(start = 24.dp, top = 0.dp, end = 24.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SRIndicatorPosition.entries.map { position ->
+                FilterChip(
+                    selected = srIndicatorPosition == position.key,
+                    onClick = { preferences.srIndicatorPosition.set(position.key) },
+                    label = {
+                        Text(
+                            when (position) {
+                                SRIndicatorPosition.TOP_LEFT -> stringResource(MR.strings.sr_indicator_position_top_left)
+                                SRIndicatorPosition.TOP_CENTER -> stringResource(MR.strings.sr_indicator_position_top_center)
+                                SRIndicatorPosition.TOP_RIGHT -> stringResource(MR.strings.sr_indicator_position_top_right)
+                                SRIndicatorPosition.BOTTOM_LEFT -> stringResource(MR.strings.sr_indicator_position_bottom_left)
+                                SRIndicatorPosition.BOTTOM_CENTER -> stringResource(MR.strings.sr_indicator_position_bottom_center)
+                                SRIndicatorPosition.BOTTOM_RIGHT -> stringResource(MR.strings.sr_indicator_position_bottom_right)
+                            },
+                        )
+                    },
+                )
+            }
         }
     }
 }

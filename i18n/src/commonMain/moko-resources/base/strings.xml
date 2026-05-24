@@ -410,6 +410,7 @@
     <string name="sr_denoise_level_off">Off</string>
     <string name="sr_denoise_level_light">Light</string>
     <string name="sr_denoise_level_strong">Strong</string>
+    <string name="pref_sr_indicator_enabled">SR Indicator</string>
     <string name="pref_sr_indicator_position">SR Indicator Position</string>
     <string name="pref_sr_indicator_mode">SR Indicator Display</string>
     <string name="sr_indicator_position_top_left">Top Left</string>

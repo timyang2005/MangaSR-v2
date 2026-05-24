@@ -941,6 +941,7 @@
     <string name="sr_denoise_level_off">关闭</string>
     <string name="sr_denoise_level_light">轻度</string>
     <string name="sr_denoise_level_strong">强度</string>
+    <string name="pref_sr_indicator_enabled">超分指示器</string>
     <string name="pref_sr_indicator_position">超分指示器位置</string>
     <string name="pref_sr_indicator_mode">超分指示器显示</string>
     <string name="sr_indicator_position_top_left">左上角</string>

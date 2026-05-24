@@ -272,7 +272,9 @@ class ReaderActivity : BaseActivity() {
         val state by viewModel.state.collectAsState()
         val srStatusInfo by viewModel.srStatusViewModel.srStatus.collectAsState()
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
+        val srIndicatorEnabled by readerPreferences.srIndicatorEnabled.collectAsState()
         val srIndicatorPosition by readerPreferences.srIndicatorPosition.collectAsState()
+        val srEnabled by readerPreferences.srEnabled.collectAsState()
         val settingsScreenModel = remember {
             ReaderSettingsScreenModel(
                 readerState = viewModel.state,
@@ -282,6 +284,7 @@ class ReaderActivity : BaseActivity() {
         }
 
         val isSrProcessed = srStatusInfo.status == SRStatus.DONE
+        val shouldShowIndicator = srEnabled && srIndicatorEnabled && isSrProcessed
 
         Box(modifier = Modifier.fillMaxSize()) {
             if (!state.menuVisible && showPageNumber) {
@@ -294,7 +297,7 @@ class ReaderActivity : BaseActivity() {
                 )
             }
 
-            if (!state.menuVisible) {
+            if (!state.menuVisible && shouldShowIndicator) {
                 SRStatusIndicator(
                     isSrProcessed = isSrProcessed,
                     position = SRIndicatorPosition.fromKey(srIndicatorPosition),
