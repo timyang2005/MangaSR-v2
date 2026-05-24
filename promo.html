@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mihon Super Resolution - AI 漫画超分辨率</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f0f13; color: #fff; overflow-x: hidden; }
+
+.hero { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; background: radial-gradient(ellipse at 50% 0%, #1a1a2e 0%, #0f0f13 70%); }
+.hero h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 16px; }
+.hero p { font-size: clamp(1rem, 2vw, 1.4rem); color: #94a3b8; max-width: 600px; line-height: 1.7; }
+.hero .badge { display: inline-block; padding: 8px 20px; background: rgba(96,165,250,0.15); border: 1px solid rgba(96,165,250,0.3); border-radius: 100px; font-size: 0.9rem; color: #60a5fa; margin-bottom: 24px; }
+
+.comparison { padding: 80px 20px; max-width: 1200px; margin: 0 auto; }
+.comparison h2 { text-align: center; font-size: 2rem; margin-bottom: 48px; color: #e2e8f0; }
+.compare-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.compare-card { background: #1a1a2e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3e; transition: transform 0.2s; }
+.compare-card:hover { transform: translateY(-4px); }
+.compare-card img { width: 100%; height: auto; display: block; }
+.compare-card .label { padding: 16px 20px; }
+.compare-card .label h3 { font-size: 1.1rem; color: #e2e8f0; }
+.compare-card .label p { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+.compare-card .label .tag { display: inline-block; padding: 2px 10px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; margin-top: 8px; }
+.tag-original { background: rgba(100,116,139,0.2); color: #94a3b8; }
+.tag-2x { background: rgba(96,165,250,0.2); color: #60a5fa; }
+.tag-4x { background: rgba(168,85,247,0.2); color: #a78bfa; }
+
+.features { padding: 80px 20px; max-width: 1200px; margin: 0 auto; }
+.features h2 { text-align: center; font-size: 2rem; margin-bottom: 48px; color: #e2e8f0; }
+.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+.feature-card { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 16px; padding: 32px; transition: border-color 0.2s; }
+.feature-card:hover { border-color: #60a5fa; }
+.feature-card .icon { font-size: 2rem; margin-bottom: 16px; }
+.feature-card h3 { font-size: 1.1rem; color: #e2e8f0; margin-bottom: 8px; }
+.feature-card p { font-size: 0.9rem; color: #64748b; line-height: 1.6; }
+
+.models { padding: 80px 20px; max-width: 800px; margin: 0 auto; }
+.models h2 { text-align: center; font-size: 2rem; margin-bottom: 48px; color: #e2e8f0; }
+.model-table { width: 100%; border-collapse: collapse; background: #1a1a2e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3e; }
+.model-table th { text-align: left; padding: 16px 20px; background: #222240; color: #94a3b8; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.model-table td { padding: 14px 20px; border-top: 1px solid #2a2a3e; color: #cbd5e1; font-size: 0.9rem; }
+.model-table tr:hover td { background: rgba(96,165,250,0.05); }
+
+.screenshots { padding: 80px 20px; max-width: 1200px; margin: 0 auto; }
+.screenshots h2 { text-align: center; font-size: 2rem; margin-bottom: 48px; color: #e2e8f0; }
+.screenshot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.screenshot-card { background: #1a1a2e; border-radius: 16px; overflow: hidden; border: 1px solid #2a2a3e; }
+.screenshot-card img { width: 100%; display: block; }
+.screenshot-card .desc { padding: 16px 20px; }
+.screenshot-card .desc h3 { font-size: 1rem; color: #e2e8f0; }
+.screenshot-card .desc p { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+
+.footer { text-align: center; padding: 60px 20px; color: #475569; font-size: 0.85rem; border-top: 1px solid #1e1e2e; margin-top: 40px; }
+.footer a { color: #60a5fa; text-decoration: none; }
+
+@media (max-width: 768px) {
+  .compare-grid { grid-template-columns: 1fr; }
+  .screenshot-grid { grid-template-columns: 1fr; }
+  .model-table { font-size: 0.8rem; }
+}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <span class="badge">🚀 Mihon 扩展 | 开源免费</span>
+  <h1>Mihon Super<br>Resolution</h1>
+  <p>AI 实时超分辨率引擎，让漫画阅读体验飞跃提升。<br>Real-CUGAN & Real-ESRGAN + NCNN Vulkan 加速</p>
+  <br>
+  <a href="#comparison" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#60a5fa,#a78bfa);border-radius:100px;color:#fff;font-weight:600;text-decoration:none;font-size:1.1rem">查看效果对比</a>
+</section>
+
+<section class="comparison" id="comparison">
+  <h2>🖼️ 超分辨率效果对比</h2>
+  <div class="compare-grid">
+    <div class="compare-card">
+      <img src="image/原图.jpg" alt="原图">
+      <div class="label">
+        <h3>原始画质</h3>
+        <p>低分辨率漫画页面，细节模糊</p>
+        <span class="tag tag-original">Original</span>
+      </div>
+    </div>
+    <div class="compare-card">
+      <img src="image/2x.jpg" alt="2x 放大">
+      <div class="label">
+        <h3>2x 超分辨率</h3>
+        <p>Real-CUGAN 2x-conservative</p>
+        <span class="tag tag-2x">2x Upscale</span>
+      </div>
+    </div>
+    <div class="compare-card">
+      <img src="image/4x.jpg" alt="4x 放大">
+      <div class="label">
+        <h3>4x 超分辨率</h3>
+        <p>Real-CUGAN 4x-conservative</p>
+        <span class="tag tag-4x">4x Upscale</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <h2>✨ 核心特性</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="icon">🧠</div>
+      <h3>5 种 AI 模型</h3>
+      <p>Real-CUGAN 2x/4x + Real-ESRGAN Anime Fast/Plus/General Fast，适配不同类型漫画</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">⚡</div>
+      <h3>Vulkan GPU 加速</h3>
+      <p>基于 NCNN 推理引擎，调用手机 GPU 实时运算，毫秒级超分</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📋</div>
+      <h3>批量超分队列</h3>
+      <p>选择多章节加入队列，后台自动处理，完毕后无缝替换</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">👁️</div>
+      <h3>实时预览</h3>
+      <p>翻页时自动预加载前 N 页，即开即用，无需等待</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>无缝替换</h3>
+      <p>超分完成后自动替换原图，不占用额外存储空间</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🎯</div>
+      <h3>灰度优化</h3>
+      <p>灰度自适应 + Otsu 二值化 + 密度校验，专为漫画优化</p>
+    </div>
+  </div>
+</section>
+
+<section class="models">
+  <h2>📊 模型选型</h2>
+  <table class="model-table">
+    <thead>
+      <tr><th>模型</th><th>倍数</th><th>大小</th><th>特点</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Real-CUGAN 2x-conservative</td><td>x2</td><td>~2MB</td><td>速度最快，2x 放大足够日常</td></tr>
+      <tr><td>Real-CUGAN 4x-conservative</td><td>x4</td><td>~2.2MB</td><td>最佳 4x 放大</td></tr>
+      <tr><td>Real-ESRGAN Anime Fast</td><td>x4</td><td>~1.5MB</td><td>动漫专用，体积最小</td></tr>
+      <tr><td>Real-ESRGAN Anime+</td><td>x4</td><td>~5MB</td><td>细节恢复最强</td></tr>
+      <tr><td>Real-ESRGAN General Fast</td><td>x4</td><td>~3MB</td><td>通用模型，适用多场景</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="screenshots">
+  <h2>📱 界面预览</h2>
+  <div class="screenshot-grid">
+    <div class="screenshot-card">
+      <img src="image/where to use.png" alt="开启超分辨率">
+      <div class="desc"><h3>⚙️ 开启超分辨率</h3><p>阅读器设置 → 超分辨率，一键开启</p></div>
+    </div>
+    <div class="screenshot-card">
+      <img src="image/models.png" alt="切换模型">
+      <div class="desc"><h3>🔧 模型切换</h3><p>根据漫画类型选择最佳 AI 模型</p></div>
+    </div>
+    <div class="screenshot-card">
+      <img src="image/benchmark.png" alt="性能基准">
+      <div class="desc"><h3>📈 性能基准测试</h3><p>设备分级 + 自动推荐最佳配置</p></div>
+    </div>
+    <div class="screenshot-card">
+      <img src="image/how to use.png" alt="批量超分">
+      <div class="desc"><h3>📋 批量超分队列</h3><p>选择章节加入队列，后台自动处理</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="text-align:center;padding:60px 20px">
+  <h2 style="margin-bottom:24px;color:#e2e8f0;font-size:1.8rem">🚀 立即体验</h2>
+  <p style="color:#94a3b8;margin-bottom:32px">要求 Android 11+，设备支持 Vulkan GPU</p>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+    <a href="https://github.com/timyang2005/mihon-super-resolution/releases/latest" style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#60a5fa,#a78bfa);border-radius:100px;color:#fff;font-weight:600;text-decoration:none;font-size:1.1rem">📥 下载 APK</a>
+    <a href="https://github.com/timyang2005/mihon-super-resolution" style="display:inline-block;padding:14px 36px;background:#1a1a2e;border:1px solid #2a2a3e;border-radius:100px;color:#e2e8f0;font-weight:600;text-decoration:none;font-size:1.1rem">💻 GitHub 源码</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <p>Mihon Super Resolution · 开源免费 · <a href="https://github.com/timyang2005/mihon-super-resolution">GitHub</a></p>
+  <p style="margin-top:8px">基于 <a href="https://github.com/mihonapp/mihon">Mihon</a> 构建 · 使用 Real-CUGAN & Real-ESRGAN</p>
+</footer>
+
+</body>
+</html>
