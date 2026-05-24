@@ -36,6 +36,7 @@ import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class SRQueueState(
     val inProgress: List<SRQueueItem> = emptyList(),
@@ -58,10 +59,10 @@ class SRQueueProcessor(
 
     private val queueMutex = Mutex()
     private val queue = mutableListOf<SRQueueItem>()
-    private var _running = false
+    private val _running = AtomicBoolean(false)
 
     val isRunning: Boolean
-        get() = _running
+        get() = _running.get()
 
     private val cancelledIds = mutableSetOf<Long>()
 
@@ -119,13 +120,12 @@ class SRQueueProcessor(
     }
 
     private fun ensureRunning() {
-        if (_running) return
+        if (_running.get()) return
         SRJob.start(context)
     }
 
     fun start() {
-        if (_running) return
-        _running = true
+        if (!_running.compareAndSet(false, true)) return
         scope.launch { runLoop() }
     }
 
@@ -139,7 +139,7 @@ class SRQueueProcessor(
             val item: SRQueueItem
             queueMutex.withLock {
                 if (queue.isEmpty()) {
-                    _running = false
+                    _running.set(false)
                     showCompletionNotification()
                     return
                 }

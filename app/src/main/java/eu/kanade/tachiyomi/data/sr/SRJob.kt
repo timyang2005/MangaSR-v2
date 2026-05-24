@@ -14,23 +14,22 @@ import androidx.work.WorkerParameters
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.setForegroundSafely
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import logcat.LogPriority
 import logcat.logcat
+import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class SRJob(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
-    private val processor: SRQueueProcessor = Injekt.get()
-
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_SR_PROGRESS) {
-            setContentTitle("Super Resolution")
-            setContentText("Processing images...")
+            setContentTitle(applicationContext.stringResource(MR.strings.sr_notification_group))
+            setContentText(applicationContext.stringResource(MR.strings.sr_notification_processing))
             setSmallIcon(android.R.drawable.ic_media_play)
             setOngoing(true)
         }.build()
@@ -47,9 +46,20 @@ class SRJob(context: Context, workerParams: WorkerParameters) : CoroutineWorker(
 
     override suspend fun doWork(): Result {
         logcat(LogPriority.INFO) { "SR: SRJob started" }
+
+        val processor = try {
+            Injekt.get<SRQueueProcessor>()
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR) { "SR: SRQueueProcessor not registered, cannot start SRJob" }
+            return Result.failure()
+        }
+
         setForegroundSafely()
 
-        processor.start()
+        // Only start if not already running
+        if (!processor.isRunning) {
+            processor.start()
+        }
 
         // Keep the job alive while processor is running
         while (processor.isRunning) {
